@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.head_ref || github.ref_name }}'
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    uses: actions-mn/shared/.github/workflows/lint-test.yml@main
+    with:
+      run-lint: true
+
+  check-dist:
+    uses: actions-mn/shared/.github/workflows/check-dist.yml@main

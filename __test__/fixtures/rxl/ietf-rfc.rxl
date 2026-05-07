@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bibdata type="standard">
+  <docidentifier type="IETF" primary="true">RFC 8984</docidentifier>
+  <docidentifier type="IETF">RFC 8984</docidentifier>
+  <docnumber>8984</docnumber>
+  <title language="en" type="main">JSCalendar: A JSON Representation of Calendar Data</title>
+  <edition>1</edition>
+  <status>
+    <stage>published</stage>
+  </status>
+  <doctype>standard</doctype>
+  <date type="published"><on>2021-07-01</on></date>
+</bibdata>

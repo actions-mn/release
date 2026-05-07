@@ -1,0 +1,181 @@
+import { getOctokit } from '@actions/github';
+import type { ReleaseConfig } from './input-helper.js';
+import type { DocumentMetadata } from './domain/document-metadata.js';
+import {
+  type IChangeDetector,
+  type IArtifactPackager,
+  type IReleasePublisher,
+  type IDocumentExtractor,
+  type GitHubReleasesApi,
+  type ICompiler
+} from './domain/types.js';
+import { RxlExtractor, discoverDocuments } from './extractors/rxl-extractor.js';
+import {
+  VisibilityFilter,
+  type IVisibilityFilter
+} from './filters/visibility-filter.js';
+import { PatternFilter } from './filters/pattern-filter.js';
+import { loadManifest } from './filters/manifest-loader.js';
+import { GitHubReleaseChangeDetector } from './detection/change-detector.js';
+import { ZipPackager } from './packaging/zip-packager.js';
+import { buildTag } from './packaging/naming-strategy.js';
+import { GitHubReleasePublisher } from './publishing/github-release.js';
+import { MetanormaCompiler } from './compilation/metanorma-compiler.js';
+import { logger } from './shared/logger.js';
+
+export interface PipelineResult {
+  readonly released: DocumentMetadata[];
+  readonly skipped: DocumentMetadata[];
+  readonly failed: Array<{ document: DocumentMetadata; error: Error }>;
+  readonly metanormaVersion: string;
+}
+
+interface MutablePipelineResult {
+  released: DocumentMetadata[];
+  skipped: DocumentMetadata[];
+  failed: Array<{ document: DocumentMetadata; error: Error }>;
+  metanormaVersion: string;
+}
+
+export interface PipelineDependencies {
+  extractor: IDocumentExtractor;
+  changeDetector: IChangeDetector;
+  packager: IArtifactPackager;
+  publisher: IReleasePublisher;
+  visibilityFilter: IVisibilityFilter;
+  compiler: ICompiler;
+}
+
+export class ReleasePipeline {
+  private readonly extractor: IDocumentExtractor;
+  private readonly changeDetector: IChangeDetector;
+  private readonly packager: IArtifactPackager;
+  private readonly publisher: IReleasePublisher;
+  private readonly visibilityFilter: IVisibilityFilter;
+  private readonly compiler: ICompiler;
+  private readonly config: ReleaseConfig;
+
+  constructor(config: ReleaseConfig, deps?: Partial<PipelineDependencies>) {
+    this.config = config;
+
+    const octokit = getOctokit(config.token) as unknown as GitHubReleasesApi;
+
+    this.extractor = deps?.extractor ?? new RxlExtractor();
+    this.changeDetector =
+      deps?.changeDetector ??
+      new GitHubReleaseChangeDetector(octokit, config.repo);
+    this.packager = deps?.packager ?? new ZipPackager();
+    this.publisher =
+      deps?.publisher ?? new GitHubReleasePublisher(octokit, config.repo);
+    this.visibilityFilter = deps?.visibilityFilter ?? new VisibilityFilter();
+    this.compiler = deps?.compiler ?? new MetanormaCompiler(config);
+  }
+
+  async execute(): Promise<PipelineResult> {
+    const result: MutablePipelineResult = {
+      released: [],
+      skipped: [],
+      failed: [],
+      metanormaVersion: ''
+    };
+
+    // 1. Compile
+    logger.info('Compiling documents...');
+    const version = await this.compiler.compile();
+    result.metanormaVersion = version;
+
+    // 2. Discover
+    logger.info('Discovering compiled documents...');
+    const absoluteOutputDir = `${this.config.workspacePath}/${this.config.outputDir}`;
+    const allDocs = await discoverDocuments(absoluteOutputDir, this.extractor);
+    logger.info(`Found ${allDocs.length} documents`);
+
+    if (allDocs.length === 0) {
+      logger.info('No documents found — nothing to release.');
+      return result;
+    }
+
+    // 3. Filter by visibility
+    const manifest = await loadManifest(
+      this.config.workspacePath,
+      this.config.releaseConfigFile
+    );
+    const visibleDocs = this.visibilityFilter.filter(allDocs, manifest);
+    logger.info(`${visibleDocs.length} documents passed visibility filter`);
+
+    // 4. Filter by pattern
+    const patternFilter = new PatternFilter(this.config.includePattern);
+    const targetDocs = patternFilter.filter(visibleDocs);
+    logger.info(
+      `${targetDocs.length} documents matched include pattern "${this.config.includePattern}"`
+    );
+
+    if (targetDocs.length === 0) {
+      logger.info('No documents matched filters — nothing to release.');
+      return result;
+    }
+
+    // 5. Process each document (parallel with allSettled)
+    const settled = await Promise.allSettled(
+      targetDocs.map((doc) => this.processDocument(doc))
+    );
+
+    for (let i = 0; i < settled.length; i++) {
+      const outcome = settled[i];
+      const doc = targetDocs[i];
+
+      if (outcome.status === 'fulfilled') {
+        if (outcome.value.released) {
+          result.released.push(doc);
+          logger.info(`RELEASED: ${doc.id} (${doc.version.tagComponent})`);
+        } else {
+          result.skipped.push(doc);
+          logger.info(`SKIPPED: ${doc.id} (unchanged)`);
+        }
+      } else {
+        result.failed.push({
+          document: doc,
+          error: outcome.reason
+        });
+        logger.error(`FAILED: ${doc.id}: ${outcome.reason}`);
+      }
+    }
+
+    // 6. Summary
+    logger.info(
+      `Done. Released: ${result.released.length}, ` +
+        `Skipped: ${result.skipped.length}, ` +
+        `Failed: ${result.failed.length}`
+    );
+
+    return result;
+  }
+
+  private async processDocument(
+    metadata: DocumentMetadata
+  ): Promise<{ released: boolean }> {
+    const tag = buildTag(metadata);
+
+    const detection = await this.changeDetector.detect(
+      metadata,
+      tag,
+      this.config.force
+    );
+
+    if (!detection.changed) {
+      return { released: false };
+    }
+
+    const artifact = await this.packager.package(metadata, metadata.version);
+
+    await this.publisher.publish(
+      tag,
+      artifact.zipPath,
+      detection.currentHash,
+      metadata,
+      tag.isPreRelease
+    );
+
+    return { released: true };
+  }
+}

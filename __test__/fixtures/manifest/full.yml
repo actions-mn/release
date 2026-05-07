@@ -1,0 +1,6 @@
+documents:
+  - source: sources/cc-51015.adoc
+  - source: sources/cc-51024.adoc
+  - source: sources/cc-51026.adoc
+    visibility: private
+  - source: sources/draft-ietf-calext-jscalendar-32.adoc

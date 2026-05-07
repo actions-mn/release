@@ -1,0 +1,66 @@
+{
+  "name": "metanorma-release",
+  "version": "1.0.0",
+  "description": "Compile and release Metanorma documents as per-document GitHub Releases",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/index.js --minify --sourcemap",
+    "format": "prettier --write '**/*.ts'",
+    "format-check": "prettier --check '**/*.ts'",
+    "lint": "eslint src",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/actions-mn/release.git"
+  },
+  "keywords": [
+    "github",
+    "actions",
+    "metanorma"
+  ],
+  "author": "actions-mn",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/actions-mn/release/issues"
+  },
+  "homepage": "https://github.com/actions-mn/release#readme",
+  "dependencies": {
+    "@actions/core": "^3.0.0",
+    "@actions/exec": "^3.0.0",
+    "@actions/github": "^6.0.0",
+    "@actions/io": "^3.0.2",
+    "archiver": "^7.0.0",
+    "fast-xml-parser": "^4.5.0",
+    "glob": "^11.0.0",
+    "js-yaml": "^4.1.0",
+    "minimatch": "^10.0.0"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^2.0.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/archiver": "^7.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.x",
+    "@typescript-eslint/eslint-plugin": "^8.55.0",
+    "@typescript-eslint/parser": "^8.55.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "adm-zip": "^0.5.17",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.18.0",
+    "eslint-plugin-eslint-comments": "^3.2.0",
+    "eslint-plugin-github": "^6.0.0",
+    "eslint-plugin-i18n-text": "^1.0.1",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-no-only-tests": "^3.3.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.14.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

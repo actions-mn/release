@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bibdata type="standard">
+  <docidentifier type="IETF" primary="true">draft-ietf-calext-jscalendar-32</docidentifier>
+  <docidentifier type="IETF">draft-ietf-calext-jscalendar-32</docidentifier>
+  <docnumber>draft-ietf-calext-jscalendar-32</docnumber>
+  <title language="en" type="main">JSON Calendar</title>
+  <edition>32</edition>
+  <status>
+    <stage>standard</stage>
+  </status>
+  <doctype>standard</doctype>
+</bibdata>

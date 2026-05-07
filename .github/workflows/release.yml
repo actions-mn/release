@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.2.0)'
+        required: false
+        type: string
+      create_release:
+        description: 'Create a GitHub Release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    uses: actions-mn/shared/.github/workflows/release.yml@main
+    with:
+      version: ${{ inputs.version }}
+      create_release: ${{ inputs.create_release }}

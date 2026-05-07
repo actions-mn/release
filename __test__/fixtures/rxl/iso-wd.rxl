@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bibdata type="standard">
+  <docidentifier type="ISO" primary="true">ISO/WD 8601-1:2026</docidentifier>
+  <docidentifier type="ISO">ISO 8601-1</docidentifier>
+  <docnumber>8601-1</docnumber>
+  <title language="en" type="main">Date and time — Part 1: Basic rules</title>
+  <edition>2</edition>
+  <status>
+    <stage value="20" abbreviation="WD">working-draft</stage>
+    <substage value="20"/>
+  </status>
+  <doctype>standard</doctype>
+</bibdata>

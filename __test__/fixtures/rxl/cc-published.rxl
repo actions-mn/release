@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bibdata type="standard">
+  <docidentifier type="ISO" primary="true">CC 51015</docidentifier>
+  <docidentifier type="ISO">CC 51015</docidentifier>
+  <docnumber>51015</docnumber>
+  <title language="en" type="main">JSCalendar: A JSON Representation of Calendar Data</title>
+  <edition>1</edition>
+  <status>
+    <stage>published</stage>
+  </status>
+  <doctype>standard</doctype>
+  <date type="published"><on>2019-01-18</on></date>
+</bibdata>
