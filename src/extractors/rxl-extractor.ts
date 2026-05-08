@@ -130,8 +130,12 @@ export class RxlExtractor implements IDocumentExtractor {
         : undefined;
     const substageText = this.extractTextFromNode(substageNode);
 
-    const numericStage = stageValue ?? (stageText && /^\d+$/.test(stageText) ? stageText : undefined);
-    const numericSubstage = substageValue ?? (substageText && /^\d+$/.test(substageText) ? substageText : undefined);
+    const numericStage =
+      stageValue ??
+      (stageText && /^\d+$/.test(stageText) ? stageText : undefined);
+    const numericSubstage =
+      substageValue ??
+      (substageText && /^\d+$/.test(substageText) ? substageText : undefined);
 
     if (numericStage && /^\d+$/.test(numericStage)) {
       return DocumentStage.fromIsoStage(
