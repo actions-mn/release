@@ -1,7 +1,7 @@
 {
   "name": "metanorma-release",
-  "version": "1.0.0",
-  "description": "Compile and release Metanorma documents as per-document GitHub Releases",
+  "version": "1.0.1",
+  "description": "Publish compiled Metanorma documents as per-document GitHub Releases",
   "main": "dist/index.js",
   "engines": {
     "node": ">=24.0.0"
