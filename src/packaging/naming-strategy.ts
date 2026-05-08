@@ -24,21 +24,22 @@ export class StandardNamingStrategy implements INamingStrategy {
   }
 
   computeCanonicalBase(id: DocumentId, version: DocumentVersion): string {
-    const suffix = version.tagComponent;
-    return `${id.fileName}-${suffix}`;
+    return `${id.fileName}-${version.tagComponent}`;
   }
 }
 
 export class IetfDraftNamingStrategy implements INamingStrategy {
-  computeTag(id: DocumentId, version: DocumentVersion): ReleaseTag {
+  computeTag(id: DocumentId, _version: DocumentVersion): ReleaseTag {
     const raw = id.toString();
-    const match = raw.match(/^draft-(ietf)-([a-z]+)-(.+)-(\d+)$/);
+    // draft-ietf-calext-jscalendar-32 → id-ietf-calext-jscalendar/32
+    // draft-camelot-holy-grenade-01 → id-camelot-holy-grenade/01
+    const match = raw.match(/^draft-(?:ietf-)?([a-z]+(?:-[a-z]+)*)-(\d+)$/);
     if (!match) {
-      return ReleaseTag.from(id, version);
+      return ReleaseTag.create(`${raw}/draft`, true);
     }
 
-    const [, , org, name, draftVersion] = match;
-    return ReleaseTag.create(`id-${org}-${name}/${draftVersion}`, true);
+    const [, name, draftVersion] = match;
+    return ReleaseTag.create(`id-${name}/${draftVersion}`, true);
   }
 
   computeAssetName(id: DocumentId, _version: DocumentVersion): string {

@@ -8,7 +8,6 @@ describe('getInputs', () => {
   });
 
   afterEach(() => {
-    // Clean up all INPUT_ vars
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('INPUT_')) {
         delete process.env[key];
@@ -28,12 +27,7 @@ describe('getInputs', () => {
 
     expect(config.sourcePath).toBe('.');
     expect(config.outputDir).toBe('_site');
-    expect(config.configFile).toBe('metanorma.yml');
     expect(config.releaseConfigFile).toBe('metanorma.release.yml');
-    expect(config.agreeToTerms).toBe(true);
-    expect(config.installFonts).toBe(true);
-    expect(config.continueWithoutFonts).toBe(true);
-    expect(config.useBundler).toBe(false);
     expect(config.force).toBe(false);
     expect(config.includePattern).toBe('*');
     expect(config.token).toBe('ghp_test123');
@@ -44,12 +38,7 @@ describe('getInputs', () => {
   it('reads custom inputs', async () => {
     setInput('source-path', 'custom-source');
     setInput('output-dir', 'custom-output');
-    setInput('config-file', 'custom.yml');
     setInput('release-config', 'custom.release.yml');
-    setInput('agree-to-terms', 'false');
-    setInput('install-fonts', 'false');
-    setInput('continue-without-fonts', 'false');
-    setInput('use-bundler', 'true');
     setInput('force', 'true');
     setInput('include-pattern', 'cc-*');
     setInput('token', 'ghp_custom');
@@ -58,12 +47,7 @@ describe('getInputs', () => {
 
     expect(config.sourcePath).toBe('custom-source');
     expect(config.outputDir).toBe('custom-output');
-    expect(config.configFile).toBe('custom.yml');
     expect(config.releaseConfigFile).toBe('custom.release.yml');
-    expect(config.agreeToTerms).toBe(false);
-    expect(config.installFonts).toBe(false);
-    expect(config.continueWithoutFonts).toBe(false);
-    expect(config.useBundler).toBe(true);
     expect(config.force).toBe(true);
     expect(config.includePattern).toBe('cc-*');
     expect(config.repo).toEqual({ owner: 'owner', repo: 'repo' });
@@ -84,7 +68,7 @@ describe('getInputs', () => {
   });
 
   it('throws for invalid boolean input', async () => {
-    setInput('agree-to-terms', 'maybe');
+    setInput('force', 'maybe');
     setInput('token', 'test');
 
     await expect(getInputs()).rejects.toThrow('Invalid boolean value');

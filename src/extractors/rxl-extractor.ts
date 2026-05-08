@@ -46,6 +46,9 @@ interface ParsedRxl {
       on?: string;
       '#text'?: string;
     }>;
+    ext?: {
+      flavor?: string;
+    };
   };
 }
 
@@ -67,6 +70,7 @@ export class RxlExtractor implements IDocumentExtractor {
     const title = this.extractTitle(bibdata);
     const doctype = this.extractText(bibdata.doctype) ?? '';
     const revdate = this.extractRevdate(bibdata);
+    const flavor = bibdata.ext?.flavor;
 
     const outputDir = dirname(rxlPath);
     const formats = await this.detectFormats(outputDir);
@@ -80,6 +84,7 @@ export class RxlExtractor implements IDocumentExtractor {
       version,
       doctype,
       documentType,
+      flavor,
       revdate,
       sourcePath,
       outputDir,
@@ -123,15 +128,19 @@ export class RxlExtractor implements IDocumentExtractor {
       typeof substageNode === 'object' && substageNode !== null
         ? substageNode['@_value']
         : undefined;
+    const substageText = this.extractTextFromNode(substageNode);
 
-    if (stageValue && /^\d+$/.test(stageValue)) {
+    const numericStage = stageValue ?? (stageText && /^\d+$/.test(stageText) ? stageText : undefined);
+    const numericSubstage = substageValue ?? (substageText && /^\d+$/.test(substageText) ? substageText : undefined);
+
+    if (numericStage && /^\d+$/.test(numericStage)) {
       return DocumentStage.fromIsoStage(
-        parseInt(stageValue, 10),
-        parseInt(substageValue ?? '0', 10)
+        parseInt(numericStage, 10),
+        parseInt(numericSubstage ?? '0', 10)
       );
     }
 
-    if (stageText && !/^\d+$/.test(stageText)) {
+    if (stageText) {
       try {
         return DocumentStage.fromStatus(stageText);
       } catch {
@@ -139,14 +148,7 @@ export class RxlExtractor implements IDocumentExtractor {
       }
     }
 
-    if (stageValue) {
-      return DocumentStage.fromIsoStage(
-        parseInt(stageValue, 10),
-        parseInt(substageValue ?? '0', 10)
-      );
-    }
-
-    return DocumentStage.fromStatus(stageText || 'published');
+    return DocumentStage.fromStatus('published');
   }
 
   private extractTitle(bibdata: ParsedRxl['bibdata']): string {
@@ -224,9 +226,9 @@ export class RxlExtractor implements IDocumentExtractor {
     return sourceParts.join('/');
   }
 
-  private detectDocumentType(rawId: string): DocumentType {
-    if (/^draft-/i.test(rawId)) return DocumentType.IetfDraft;
+  detectDocumentType(rawId: string): DocumentType {
     if (/^RFC\s/i.test(rawId)) return DocumentType.IetfRfc;
+    if (/^draft-/i.test(rawId)) return DocumentType.IetfDraft;
     return DocumentType.Standard;
   }
 }
