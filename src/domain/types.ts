@@ -86,7 +86,11 @@ export class DocumentStage {
   }
 
   get isDraft(): boolean {
-    return !this.isPublished && this.name !== 'withdrawn' && this.name !== 'cancelled';
+    return (
+      !this.isPublished &&
+      this.name !== 'withdrawn' &&
+      this.name !== 'cancelled'
+    );
   }
 
   get tagSuffix(): string {
