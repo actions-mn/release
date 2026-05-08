@@ -97,7 +97,7 @@ describe('Naming Strategies', () => {
         DocumentStage.fromStatus('standard')
       );
       const tag = strategy.computeTag(id, version);
-      expect(tag.toString()).toBe('draft-other/ed1');
+      expect(tag.toString()).toBe('draft-other/draft');
     });
   });
 

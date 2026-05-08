@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { RxlExtractor } from '../../src/extractors/rxl-extractor.js';
 import { join } from 'path';
 import { mkdir, writeFile, rm } from 'fs/promises';
@@ -12,64 +12,105 @@ describe('RxlExtractor', () => {
     extractor = new RxlExtractor();
   });
 
-  describe('extract', () => {
-    it('extracts CC published document', async () => {
+  describe('extract — real fixtures from Metanorma sample sites', () => {
+    it('extracts CC/FDS 18011:2018 (final-draft)', async () => {
       const result = await extractor.extract(
-        join(FIXTURES_DIR, 'cc-published.rxl')
+        join(FIXTURES_DIR, 'cc-18011.rxl')
       );
-      expect(result.id.toString()).toBe('cc-51015');
-      expect(result.title).toBe(
-        'JSCalendar: A JSON Representation of Calendar Data'
-      );
+      expect(result.id.toString()).toBe('cc-fds-18011-2018');
+      expect(result.title).toContain('Explicit representation');
       expect(result.version.editionNumber).toBe('1');
-      expect(result.version.isPreRelease).toBe(false);
-      expect(result.doctype).toBe('standard');
-      expect(result.revdate).toBe('2019-01-18');
+      expect(result.version.tagComponent).toBe('ed1-fd');
+      expect(result.version.isPreRelease).toBe(true);
+      expect(result.flavor).toBe('cc');
+      expect(result.revdate).toContain('2018');
     });
 
-    it('extracts CC working draft', async () => {
+    it('extracts ISO 17301-1:2016 (published, stage 60.60)', async () => {
       const result = await extractor.extract(
-        join(FIXTURES_DIR, 'cc-working-draft.rxl')
+        join(FIXTURES_DIR, 'iso-rice-published.rxl')
       );
-      expect(result.id.toString()).toBe('cc-51015');
+      expect(result.id.toString()).toBe('iso-17301-1-2016');
+      expect(result.version.isPreRelease).toBe(false);
+      expect(result.version.editionNumber).toBe('2');
+      expect(result.flavor).toBe('iso');
+    });
+
+    it('extracts ISO/AWI 17301-1:2016 (WD, stage 20.00)', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'iso-rice-wd.rxl')
+      );
+      expect(result.id.toString()).toBe('iso-awi-17301-1-2016');
       expect(result.version.tagComponent).toBe('ed2-wd');
       expect(result.version.isPreRelease).toBe(true);
+      expect(result.flavor).toBe('iso');
     });
 
-    it('extracts CC committee draft', async () => {
+    it('extracts ISO/CD 17301-1:2016 (CD, stage 30.00)', async () => {
       const result = await extractor.extract(
-        join(FIXTURES_DIR, 'cc-committee-draft.rxl')
+        join(FIXTURES_DIR, 'iso-rice-cd.rxl')
       );
-      expect(result.id.toString()).toBe('cc-51024');
-      expect(result.version.tagComponent).toBe('ed1-cd');
-    });
-
-    it('extracts ISO published (60.60)', async () => {
-      const result = await extractor.extract(
-        join(FIXTURES_DIR, 'iso-published.rxl')
-      );
-      expect(result.id.toString()).toBe('iso-8601-1-2019');
-      expect(result.version.isPreRelease).toBe(false);
-      expect(result.version.editionNumber).toBe('1');
-    });
-
-    it('extracts ISO WD (20.20)', async () => {
-      const result = await extractor.extract(join(FIXTURES_DIR, 'iso-wd.rxl'));
-      expect(result.id.toString()).toBe('iso-wd-8601-1-2026');
-      expect(result.version.tagComponent).toBe('ed2-wd');
+      expect(result.id.toString()).toBe('iso-cd-17301-1-2016');
+      expect(result.version.tagComponent).toBe('ed2-cd');
       expect(result.version.isPreRelease).toBe(true);
+      expect(result.flavor).toBe('iso');
     });
 
-    it('extracts IETF I-D', async () => {
-      const result = await extractor.extract(join(FIXTURES_DIR, 'ietf-id.rxl'));
-      expect(result.id.toString()).toBe('draft-ietf-calext-jscalendar-32');
-    });
-
-    it('extracts IETF RFC', async () => {
+    it('extracts draft-camelot-holy-grenade-01 (IETF I-D)', async () => {
       const result = await extractor.extract(
-        join(FIXTURES_DIR, 'ietf-rfc.rxl')
+        join(FIXTURES_DIR, 'ietf-antioch.rxl')
       );
-      expect(result.id.toString()).toBe('rfc-8984');
+      expect(result.id.toString()).toBe('draft-camelot-holy-grenade-01');
+      expect(result.documentType).toBe('ietf-draft');
+      expect(result.flavor).toBe('ietf');
+      expect(result.title).toContain('Holy Hand Grenade');
+    });
+
+    it('extracts IETF RFC 1149 document', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'ietf-example.rxl')
+      );
+      expect(result.id.toString()).toBe('1149');
+      expect(result.documentType).toBe('standard');
+      expect(result.flavor).toBe('ietf');
+    });
+
+    it('extracts OGC 10-091r3 (approved)', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'ogc-10-091r3.rxl')
+      );
+      expect(result.id.toString()).toBe('10-091r3');
+      expect(result.version.isPreRelease).toBe(false);
+      expect(result.flavor).toBe('ogc');
+      expect(result.revdate).toBe('2011-04-05');
+    });
+
+    it('extracts IHO S-102 (in-force)', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'iho-s102.rxl')
+      );
+      expect(result.id.toString()).toBe('s-102');
+      expect(result.version.isPreRelease).toBe(false);
+      expect(result.version.editionNumber).toBe('2.1.0');
+      expect(result.flavor).toBe('iho');
+    });
+
+    it('extracts BIPM brochure (in-force)', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'bipm-brochure.rxl')
+      );
+      expect(result.id.toString()).toBe('bipm-its-90-mep-1-a1');
+      expect(result.version.isPreRelease).toBe(false);
+      expect(result.flavor).toBe('bipm');
+    });
+
+    it('extracts BIPM WPN 203 (in-force)', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'bipm-wpn.rxl')
+      );
+      expect(result.id.toString()).toBe('bipm-203');
+      expect(result.version.isPreRelease).toBe(false);
+      expect(result.flavor).toBe('bipm');
     });
 
     it('throws on malformed XML', async () => {
@@ -77,21 +118,26 @@ describe('RxlExtractor', () => {
         extractor.extract(join(FIXTURES_DIR, 'malformed.rxl'))
       ).rejects.toThrow();
     });
+  });
 
-    it('detects document type correctly', async () => {
-      const cc = await extractor.extract(
-        join(FIXTURES_DIR, 'cc-published.rxl')
+  describe('document type detection', () => {
+    it('detects standard for CC document', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'cc-18011.rxl')
       );
-      expect(cc.documentType).toBe('standard');
-
-      const id = await extractor.extract(join(FIXTURES_DIR, 'ietf-id.rxl'));
-      expect(id.documentType).toBe('ietf-draft');
-
-      const rfc = await extractor.extract(join(FIXTURES_DIR, 'ietf-rfc.rxl'));
-      expect(rfc.documentType).toBe('ietf-rfc');
+      expect(result.documentType).toBe('standard');
     });
 
-    it('detects formats in output directory', async () => {
+    it('detects ietf-draft for draft- identifier', async () => {
+      const result = await extractor.extract(
+        join(FIXTURES_DIR, 'ietf-antioch.rxl')
+      );
+      expect(result.documentType).toBe('ietf-draft');
+    });
+  });
+
+  describe('detects formats in output directory', () => {
+    it('lists file extensions excluding .rxl', async () => {
       const tmpDir = join(__dirname, 'tmp-format-detect');
       try {
         await mkdir(tmpDir, { recursive: true });

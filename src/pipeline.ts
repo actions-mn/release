@@ -6,8 +6,7 @@ import {
   type IArtifactPackager,
   type IReleasePublisher,
   type IDocumentExtractor,
-  type GitHubReleasesApi,
-  type ICompiler
+  type GitHubReleasesApi
 } from './domain/types.js';
 import { RxlExtractor, discoverDocuments } from './extractors/rxl-extractor.js';
 import {
@@ -20,21 +19,18 @@ import { GitHubReleaseChangeDetector } from './detection/change-detector.js';
 import { ZipPackager } from './packaging/zip-packager.js';
 import { buildTag } from './packaging/naming-strategy.js';
 import { GitHubReleasePublisher } from './publishing/github-release.js';
-import { MetanormaCompiler } from './compilation/metanorma-compiler.js';
 import { logger } from './shared/logger.js';
 
 export interface PipelineResult {
   readonly released: DocumentMetadata[];
   readonly skipped: DocumentMetadata[];
   readonly failed: Array<{ document: DocumentMetadata; error: Error }>;
-  readonly metanormaVersion: string;
 }
 
 interface MutablePipelineResult {
   released: DocumentMetadata[];
   skipped: DocumentMetadata[];
   failed: Array<{ document: DocumentMetadata; error: Error }>;
-  metanormaVersion: string;
 }
 
 export interface PipelineDependencies {
@@ -43,7 +39,6 @@ export interface PipelineDependencies {
   packager: IArtifactPackager;
   publisher: IReleasePublisher;
   visibilityFilter: IVisibilityFilter;
-  compiler: ICompiler;
 }
 
 export class ReleasePipeline {
@@ -52,7 +47,6 @@ export class ReleasePipeline {
   private readonly packager: IArtifactPackager;
   private readonly publisher: IReleasePublisher;
   private readonly visibilityFilter: IVisibilityFilter;
-  private readonly compiler: ICompiler;
   private readonly config: ReleaseConfig;
 
   constructor(config: ReleaseConfig, deps?: Partial<PipelineDependencies>) {
@@ -68,23 +62,16 @@ export class ReleasePipeline {
     this.publisher =
       deps?.publisher ?? new GitHubReleasePublisher(octokit, config.repo);
     this.visibilityFilter = deps?.visibilityFilter ?? new VisibilityFilter();
-    this.compiler = deps?.compiler ?? new MetanormaCompiler(config);
   }
 
   async execute(): Promise<PipelineResult> {
     const result: MutablePipelineResult = {
       released: [],
       skipped: [],
-      failed: [],
-      metanormaVersion: ''
+      failed: []
     };
 
-    // 1. Compile
-    logger.info('Compiling documents...');
-    const version = await this.compiler.compile();
-    result.metanormaVersion = version;
-
-    // 2. Discover
+    // 1. Discover
     logger.info('Discovering compiled documents...');
     const absoluteOutputDir = `${this.config.workspacePath}/${this.config.outputDir}`;
     const allDocs = await discoverDocuments(absoluteOutputDir, this.extractor);
@@ -95,7 +82,7 @@ export class ReleasePipeline {
       return result;
     }
 
-    // 3. Filter by visibility
+    // 2. Filter by visibility
     const manifest = await loadManifest(
       this.config.workspacePath,
       this.config.releaseConfigFile
@@ -103,7 +90,7 @@ export class ReleasePipeline {
     const visibleDocs = this.visibilityFilter.filter(allDocs, manifest);
     logger.info(`${visibleDocs.length} documents passed visibility filter`);
 
-    // 4. Filter by pattern
+    // 3. Filter by pattern
     const patternFilter = new PatternFilter(this.config.includePattern);
     const targetDocs = patternFilter.filter(visibleDocs);
     logger.info(
@@ -115,7 +102,7 @@ export class ReleasePipeline {
       return result;
     }
 
-    // 5. Process each document (parallel with allSettled)
+    // 4. Process each document (parallel with allSettled)
     const settled = await Promise.allSettled(
       targetDocs.map((doc) => this.processDocument(doc))
     );
@@ -141,7 +128,7 @@ export class ReleasePipeline {
       }
     }
 
-    // 6. Summary
+    // 5. Summary
     logger.info(
       `Done. Released: ${result.released.length}, ` +
         `Skipped: ${result.skipped.length}, ` +

@@ -1,5 +1,5 @@
 name: 'metanorma-release'
-description: 'Compile and release Metanorma documents as per-document GitHub Releases'
+description: 'Release compiled Metanorma documents as per-document GitHub Releases'
 author: 'actions-mn'
 branding:
   icon: 'package'
@@ -10,34 +10,14 @@ inputs:
     description: 'Source path containing the metanorma configuration'
     required: false
     default: '.'
-  config-file:
-    description: 'Metanorma configuration file name'
+  output-dir:
+    description: 'Output directory containing compiled documents'
     required: false
-    default: 'metanorma.yml'
+    default: '_site'
   release-config:
     description: 'Release manifest file (visibility filter)'
     required: false
     default: 'metanorma.release.yml'
-  output-dir:
-    description: 'Output directory for compiled documents'
-    required: false
-    default: '_site'
-  agree-to-terms:
-    description: 'Agree to all third-party licensing terms'
-    required: false
-    default: 'true'
-  install-fonts:
-    description: 'Install missing fonts automatically'
-    required: false
-    default: 'true'
-  continue-without-fonts:
-    description: 'Continue processing even when fonts are missing'
-    required: false
-    default: 'true'
-  use-bundler:
-    description: 'Use bundler to execute metanorma'
-    required: false
-    default: 'false'
   force:
     description: 'Force release even if content hash matches last release'
     required: false
@@ -58,8 +38,6 @@ outputs:
     description: 'JSON array of skipped document identifiers (unchanged)'
   total-documents:
     description: 'Total number of documents processed'
-  metanorma-version:
-    description: 'Version of metanorma used for compilation'
 
 runs:
   using: 'node24'

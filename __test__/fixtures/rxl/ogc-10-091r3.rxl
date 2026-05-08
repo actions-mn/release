@@ -1,0 +1,26 @@
+<bibdata type="standard">
+<title language="en" type="main">CF-netCDF Core and Extensions Primer</title>
+<docidentifier type="ogc-internal" primary="true">10-091r3</docidentifier><docidentifier type="ogc-external">http://www.opengis.net/doc/IS/netcdf/Primer/1.0</docidentifier><docnumber>10-091r3</docnumber><date type="published"><on>2011-04-05</on></date><date type="issued"><on>2011-04-05</on></date><date type="received"><on>2011-04-05</on></date><contributor><role type="author"/><organization>
+<name>IMAA-CNR Italy</name>
+</organization></contributor><contributor><role type="author"/><organization>
+<name>METEO-FRANCE</name>
+</organization></contributor><contributor><role type="author"/><organization>
+<name>Natural Environment Research Council (NERC)</name>
+</organization></contributor><contributor><role type="author"/><organization>
+<name>Northrop Grumman Corporation</name>
+</organization></contributor><contributor><role type="author"/><organization>
+<name>University Corporation for Atmospheric Research (UCAR)</name>
+</organization></contributor><contributor><role type="author"/><organization>
+<name>US National Oceanic and Atmospheric Administration (NOAA)</name>
+</organization></contributor><contributor><role type="editor"/><person>
+<name><completename>Ben Domenico</completename></name>
+</person></contributor><contributor><role type="author"><description>committee</description></role><organization>
+<name>Open Geospatial Consortium</name>
+<subdivision type="Committee">
+<name>technical</name>
+</subdivision><abbreviation>OGC</abbreviation></organization></contributor><contributor><role type="publisher"/><organization>
+<name>Open Geospatial Consortium</name>
+<abbreviation>OGC</abbreviation></organization></contributor><edition>1.0</edition><language>en</language><script>Latn</script><abstract><p>This OGC primer provides an overview of the OGC CF-netCDF standards suite by describing the CF-netCDF core and extensions. The CF-netCDF standard defines how to encode digital geospatial information representing space/time-varying phenomena</p>
+</abstract><status><stage>approved</stage></status><copyright><from>2011</from><owner><organization>
+<name>Open Geospatial Consortium</name>
+<abbreviation>OGC</abbreviation></organization></owner></copyright><keyword>ogcdoc</keyword><keyword>netcdf</keyword><keyword>cf-netcdf</keyword><ext><doctype>other</doctype><flavor>ogc</flavor></ext></bibdata>

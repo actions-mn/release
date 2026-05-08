@@ -5,11 +5,14 @@ describe('DocumentStage', () => {
   describe('fromStatus', () => {
     it.each([
       ['published', 'published'],
+      ['in-force', 'in-force'],
+      ['approved', 'approved'],
       ['working-draft', 'working-draft'],
       ['committee-draft', 'committee-draft'],
       ['draft-standard', 'draft-standard'],
       ['final-draft', 'final-draft'],
       ['proposal', 'proposal'],
+      ['informational', 'informational'],
       ['withdrawn', 'withdrawn'],
       ['cancelled', 'cancelled']
     ] as const)('maps "%s" correctly', (status, expected) => {
@@ -17,10 +20,17 @@ describe('DocumentStage', () => {
       expect(stage.toString()).toBe(expected);
     });
 
-    it('throws on unknown stage', () => {
-      expect(() => DocumentStage.fromStatus('unknown')).toThrow(
-        'Unknown stage'
-      );
+    it('accepts unknown stages (data-driven)', () => {
+      const stage = DocumentStage.fromStatus('approved');
+      expect(stage.toString()).toBe('approved');
+      expect(stage.isPublished).toBe(true);
+    });
+
+    it('accepts any arbitrary stage', () => {
+      const stage = DocumentStage.fromStatus('some-new-stage');
+      expect(stage.toString()).toBe('some-new-stage');
+      expect(stage.isDraft).toBe(true);
+      expect(stage.tagSuffix).toBe('some-new-stage');
     });
   });
 
@@ -60,6 +70,10 @@ describe('DocumentStage', () => {
       expect(DocumentStage.fromStatus('working-draft').isPublished).toBe(false);
     });
 
+    it('returns true for approved', () => {
+      expect(DocumentStage.fromStatus('approved').isPublished).toBe(true);
+    });
+
     it('returns false for withdrawn', () => {
       expect(DocumentStage.fromStatus('withdrawn').isPublished).toBe(false);
     });
@@ -87,11 +101,13 @@ describe('DocumentStage', () => {
     it.each([
       ['published', ''],
       ['in-force', ''],
+      ['approved', ''],
       ['working-draft', 'wd'],
       ['committee-draft', 'cd'],
       ['draft-standard', 'ds'],
       ['final-draft', 'fd'],
       ['proposal', 'proposal'],
+      ['informational', 'info'],
       ['withdrawn', 'withdrawn'],
       ['cancelled', 'cancelled']
     ] as const)('suffix for %s is "%s"', (status, expected) => {

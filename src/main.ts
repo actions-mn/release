@@ -20,7 +20,6 @@ async function run(): Promise<void> {
       'total-documents',
       result.released.length + result.skipped.length + result.failed.length
     );
-    setOutput('metanorma-version', result.metanormaVersion);
 
     if (result.failed.length > 0) {
       const failedIds = result.failed

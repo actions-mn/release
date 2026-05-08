@@ -4,14 +4,8 @@ import { resolve } from 'path';
 export interface ReleaseConfig {
   sourcePath: string;
   outputDir: string;
-  configFile: string;
   releaseConfigFile: string;
   workspacePath: string;
-
-  agreeToTerms: boolean;
-  installFonts: boolean;
-  continueWithoutFonts: boolean;
-  useBundler: boolean;
 
   force: boolean;
   includePattern: string;
@@ -24,14 +18,8 @@ export async function getInputs(): Promise<ReleaseConfig> {
   return {
     sourcePath: getSourcePath(),
     outputDir: getOutputDir(),
-    configFile: getConfigFile(),
     releaseConfigFile: getReleaseConfigFile(),
     workspacePath: getWorkspacePath(),
-
-    agreeToTerms: getBooleanInput('agree-to-terms', 'true'),
-    installFonts: getBooleanInput('install-fonts', 'true'),
-    continueWithoutFonts: getBooleanInput('continue-without-fonts', 'true'),
-    useBundler: getBooleanInput('use-bundler', 'false'),
 
     force: getBooleanInput('force', 'false'),
     includePattern: getIncludePattern(),
@@ -49,12 +37,6 @@ function getSourcePath(): string {
 function getOutputDir(): string {
   const input = getInput('output-dir') || '_site';
   return validatePath(input, 'output-dir');
-}
-
-function getConfigFile(): string {
-  const input = getInput('config-file') || 'metanorma.yml';
-  validateFilename(input, 'config-file');
-  return input;
 }
 
 function getReleaseConfigFile(): string {

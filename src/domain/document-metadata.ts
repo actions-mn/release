@@ -12,6 +12,7 @@ export interface DocumentMetadata {
   readonly version: DocumentVersion;
   readonly doctype: string;
   readonly documentType: DocumentType;
+  readonly flavor: string | undefined;
   readonly revdate: string | undefined;
   readonly sourcePath: string;
   readonly outputDir: string;

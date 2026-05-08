@@ -3,19 +3,6 @@ import type { ReleaseManifest } from './release-manifest.js';
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
 
-export type StageName =
-  | 'published'
-  | 'in-force'
-  | 'working-draft'
-  | 'committee-draft'
-  | 'draft-standard'
-  | 'final-draft'
-  | 'proposal'
-  | 'informational'
-  | 'standard'
-  | 'withdrawn'
-  | 'cancelled';
-
 export enum Visibility {
   Public = 'public',
   Private = 'private',
@@ -56,10 +43,14 @@ export class DocumentId {
 }
 
 export class DocumentStage {
-  private constructor(
-    private readonly name: StageName,
-    private readonly substage?: string
-  ) {}
+  private constructor(private readonly name: string) {}
+
+  private static readonly PUBLISHED_STAGES = new Set([
+    'published',
+    'in-force',
+    'approved',
+    'standard'
+  ]);
 
   private static readonly STAGE_ABBREVS: Record<string, string> = {
     'working-draft': 'wd',
@@ -68,56 +59,34 @@ export class DocumentStage {
     'final-draft': 'fd',
     proposal: 'proposal',
     informational: 'info',
-    standard: '',
     withdrawn: 'withdrawn',
     cancelled: 'cancelled'
   };
 
   static fromStatus(status: string): DocumentStage {
     const normalized = status.toLowerCase().trim().replace(/\s+/g, '-');
-    const validStages: StageName[] = [
-      'published',
-      'in-force',
-      'working-draft',
-      'committee-draft',
-      'draft-standard',
-      'final-draft',
-      'proposal',
-      'informational',
-      'standard',
-      'withdrawn',
-      'cancelled'
-    ];
-
-    if (!validStages.includes(normalized as StageName)) {
-      throw new Error(`Unknown stage: "${status}"`);
+    if (!normalized) {
+      throw new Error(`Empty stage name`);
     }
-    return new DocumentStage(normalized as StageName);
+    return new DocumentStage(normalized);
   }
 
-  static fromIsoStage(docstage: number, docsubstage: number): DocumentStage {
+  static fromIsoStage(docstage: number, _docsubstage: number): DocumentStage {
     if (docstage === 20) return new DocumentStage('working-draft');
     if (docstage === 30) return new DocumentStage('committee-draft');
     if (docstage === 40) return new DocumentStage('draft-standard');
     if (docstage === 50) return new DocumentStage('final-draft');
-    if (docstage === 60 && docsubstage === 60) {
-      return new DocumentStage('published');
-    }
     if (docstage === 60) return new DocumentStage('published');
     if (docstage === 95) return new DocumentStage('withdrawn');
     return new DocumentStage('working-draft');
   }
 
   get isPublished(): boolean {
-    return this.name === 'published' || this.name === 'in-force';
+    return DocumentStage.PUBLISHED_STAGES.has(this.name);
   }
 
   get isDraft(): boolean {
-    return (
-      !this.isPublished &&
-      this.name !== 'withdrawn' &&
-      this.name !== 'cancelled'
-    );
+    return !this.isPublished && this.name !== 'withdrawn' && this.name !== 'cancelled';
   }
 
   get tagSuffix(): string {
@@ -330,12 +299,6 @@ export interface GitHubReleasesApi {
       }): Promise<{ data: { id: number } }>;
     };
   };
-}
-
-// ─── Compiler Interface ────────────────────────────────────────────────────
-
-export interface ICompiler {
-  compile(): Promise<string>;
 }
 
 // ─── Filter Interfaces ─────────────────────────────────────────────────────
