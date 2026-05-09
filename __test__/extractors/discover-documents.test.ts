@@ -1,17 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  RxlExtractor,
-  discoverDocuments
-} from '../../src/extractors/rxl-extractor.js';
+import { RxlExtractor } from '../../src/extractors/rxl-extractor.js';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 
-describe('discoverDocuments', () => {
+describe('RxlExtractor.discover', () => {
   let tmpDir: string;
+  let extractor: RxlExtractor;
 
   beforeEach(async () => {
     tmpDir = join(__dirname, 'tmp-discover');
     await mkdir(tmpDir, { recursive: true });
+    extractor = new RxlExtractor();
   });
 
   afterEach(async () => {
@@ -36,7 +35,7 @@ describe('discoverDocuments', () => {
     );
     await writeFile(join(subDir, 'document.rxl'), VALID_RXL);
 
-    const results = await discoverDocuments(tmpDir, new RxlExtractor());
+    const results = await extractor.discover(tmpDir);
     expect(results.length).toBe(1);
     expect(results[0].id.toString()).toBe('cc-51015');
   });
@@ -44,7 +43,7 @@ describe('discoverDocuments', () => {
   it('returns empty array when no RXL files found', async () => {
     await writeFile(join(tmpDir, 'readme.txt'), 'not an rxl');
 
-    const results = await discoverDocuments(tmpDir, new RxlExtractor());
+    const results = await extractor.discover(tmpDir);
     expect(results).toEqual([]);
   });
 
@@ -57,7 +56,7 @@ describe('discoverDocuments', () => {
     await mkdir(goodDir, { recursive: true });
     await writeFile(join(goodDir, 'good.rxl'), VALID_RXL);
 
-    const results = await discoverDocuments(tmpDir, new RxlExtractor());
+    const results = await extractor.discover(tmpDir);
     expect(results.length).toBe(1);
     expect(results[0].id.toString()).toBe('cc-51015');
   });
@@ -75,7 +74,7 @@ describe('discoverDocuments', () => {
       );
     }
 
-    const results = await discoverDocuments(tmpDir, new RxlExtractor());
+    const results = await extractor.discover(tmpDir);
     expect(results.length).toBe(2);
   });
 });

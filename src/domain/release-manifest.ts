@@ -1,4 +1,5 @@
 import { Visibility } from './types.js';
+import { logger } from '../shared/logger.js';
 
 export interface ReleaseManifestEntry {
   readonly source: string;
@@ -24,7 +25,23 @@ export class ReleaseManifest {
     const entries = new Map<string, ReleaseManifestEntry>();
 
     for (const doc of yamlData.documents ?? []) {
-      if (!doc.source) continue;
+      if (!doc.source) {
+        logger.warn('Release manifest entry missing source field — skipping');
+        continue;
+      }
+
+      if (doc.source.includes('..')) {
+        throw new Error(
+          `Path traversal in release manifest source: "${doc.source}"`
+        );
+      }
+
+      if (entries.has(doc.source)) {
+        logger.warn(
+          `Duplicate source in release manifest: "${doc.source}" — using last entry`
+        );
+      }
+
       entries.set(doc.source, {
         source: doc.source,
         visibility:

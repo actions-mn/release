@@ -6,14 +6,16 @@ import archiver from 'archiver';
 import type { IArtifactPackager } from '../domain/types.js';
 import type { ArtifactResult, DocumentVersion } from '../domain/types.js';
 import type { DocumentMetadata } from '../domain/document-metadata.js';
-import { getNamingStrategy } from './naming-strategy.js';
+import type { NamingStrategyRegistry } from './naming-strategy.js';
 
 export class ZipPackager implements IArtifactPackager {
+  constructor(private readonly namingRegistry: NamingStrategyRegistry) {}
+
   async package(
     metadata: DocumentMetadata,
     _version: DocumentVersion
   ): Promise<ArtifactResult> {
-    const strategy = getNamingStrategy(metadata.documentType);
+    const strategy = this.namingRegistry.resolve(metadata.documentType);
     const assetName = strategy.computeAssetName(metadata.id, metadata.version);
     const canonicalBase = strategy.computeCanonicalBase(
       metadata.id,

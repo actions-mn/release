@@ -40,16 +40,16 @@ export class GitHubReleasePublisher implements IReleasePublisher {
             `Bump the edition to create a new release.`
         );
         return {
-          tag: existing.tag_name,
+          tag,
           url: existing.html_url,
           created: false
         };
       }
 
-      return this.updateRelease(existing, assetPath, body, preRelease);
+      return this.updateRelease(existing, tag, assetPath, body, preRelease);
     }
 
-    return this.createRelease(tagName, assetPath, body, preRelease, metadata);
+    return this.createRelease(tag, assetPath, body, preRelease, metadata);
   }
 
   private async findExistingRelease(
@@ -68,7 +68,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
   }
 
   private async createRelease(
-    tag: string,
+    tag: ReleaseTag,
     assetPath: string,
     body: string,
     preRelease: boolean,
@@ -76,7 +76,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
   ): Promise<PublishResult> {
     const { data } = await this.octokit.rest.repos.createRelease({
       ...this.repo,
-      tag_name: tag,
+      tag_name: tag.toString(),
       name: `${metadata.id} ${metadata.version.tagComponent}`,
       body,
       prerelease: preRelease,
@@ -94,6 +94,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
 
   private async updateRelease(
     existing: GitHubReleaseData,
+    tag: ReleaseTag,
     assetPath: string,
     body: string,
     preRelease: boolean
@@ -115,7 +116,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     await this.uploadAsset(existing.id, assetPath);
 
     return {
-      tag: existing.tag_name,
+      tag,
       url: existing.html_url,
       created: false
     };

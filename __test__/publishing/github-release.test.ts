@@ -19,6 +19,7 @@ function makeDoc(overrides: Partial<DocumentMetadata> = {}): DocumentMetadata {
     version: DocumentVersion.from('1', DocumentStage.fromStatus('published')),
     doctype: 'standard',
     documentType: DocumentType.Standard,
+    flavor: undefined,
     revdate: undefined,
     sourcePath: 'sources/cc-51015.adoc',
     outputDir: '',
@@ -105,7 +106,7 @@ describe('GitHubReleasePublisher', () => {
     const result = await publisher.publish(tag, assetPath, hash, doc, false);
 
     expect(result.created).toBe(true);
-    expect(result.tag).toBe('cc-51015/ed1');
+    expect(result.tag.toString()).toBe('cc-51015/ed1');
     expect(result.url).toContain('cc-51015/ed1');
     expect(octokit.rest.repos.createRelease).toHaveBeenCalledOnce();
     expect(octokit.rest.repos.uploadReleaseAsset).toHaveBeenCalledOnce();
@@ -139,7 +140,7 @@ describe('GitHubReleasePublisher', () => {
     const result = await publisher.publish(tag, assetPath, hash, doc, false);
 
     expect(result.created).toBe(false);
-    expect(result.tag).toBe('cc-51015/ed1');
+    expect(result.tag.toString()).toBe('cc-51015/ed1');
     expect(octokit.rest.repos.createRelease).not.toHaveBeenCalled();
     expect(octokit.rest.repos.updateRelease).not.toHaveBeenCalled();
   });

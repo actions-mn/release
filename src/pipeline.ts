@@ -1,4 +1,3 @@
-import { getOctokit } from '@actions/github';
 import type { ReleaseConfig } from './input-helper.js';
 import type { DocumentMetadata } from './domain/document-metadata.js';
 import {
@@ -6,19 +5,9 @@ import {
   type IArtifactPackager,
   type IReleasePublisher,
   type IDocumentExtractor,
-  type GitHubReleasesApi
+  type IDocumentFilter
 } from './domain/types.js';
-import { RxlExtractor, discoverDocuments } from './extractors/rxl-extractor.js';
-import {
-  VisibilityFilter,
-  type IVisibilityFilter
-} from './filters/visibility-filter.js';
-import { PatternFilter } from './filters/pattern-filter.js';
-import { loadManifest } from './filters/manifest-loader.js';
-import { GitHubReleaseChangeDetector } from './detection/change-detector.js';
-import { ZipPackager } from './packaging/zip-packager.js';
-import { buildTag } from './packaging/naming-strategy.js';
-import { GitHubReleasePublisher } from './publishing/github-release.js';
+import type { NamingStrategyRegistry } from './packaging/naming-strategy.js';
 import { logger } from './shared/logger.js';
 
 export interface PipelineResult {
@@ -35,33 +24,20 @@ interface MutablePipelineResult {
 
 export interface PipelineDependencies {
   extractor: IDocumentExtractor;
+  filters: IDocumentFilter[];
   changeDetector: IChangeDetector;
   packager: IArtifactPackager;
   publisher: IReleasePublisher;
-  visibilityFilter: IVisibilityFilter;
+  namingRegistry: NamingStrategyRegistry;
 }
 
 export class ReleasePipeline {
-  private readonly extractor: IDocumentExtractor;
-  private readonly changeDetector: IChangeDetector;
-  private readonly packager: IArtifactPackager;
-  private readonly publisher: IReleasePublisher;
-  private readonly visibilityFilter: IVisibilityFilter;
+  private readonly deps: PipelineDependencies;
   private readonly config: ReleaseConfig;
 
-  constructor(config: ReleaseConfig, deps?: Partial<PipelineDependencies>) {
+  constructor(config: ReleaseConfig, deps: PipelineDependencies) {
     this.config = config;
-
-    const octokit = getOctokit(config.token) as unknown as GitHubReleasesApi;
-
-    this.extractor = deps?.extractor ?? new RxlExtractor();
-    this.changeDetector =
-      deps?.changeDetector ??
-      new GitHubReleaseChangeDetector(octokit, config.repo);
-    this.packager = deps?.packager ?? new ZipPackager();
-    this.publisher =
-      deps?.publisher ?? new GitHubReleasePublisher(octokit, config.repo);
-    this.visibilityFilter = deps?.visibilityFilter ?? new VisibilityFilter();
+    this.deps = deps;
   }
 
   async execute(): Promise<PipelineResult> {
@@ -74,7 +50,7 @@ export class ReleasePipeline {
     // 1. Discover
     logger.info('Discovering compiled documents...');
     const absoluteOutputDir = `${this.config.workspacePath}/${this.config.outputDir}`;
-    const allDocs = await discoverDocuments(absoluteOutputDir, this.extractor);
+    const allDocs = await this.deps.extractor.discover(absoluteOutputDir);
     logger.info(`Found ${allDocs.length} documents`);
 
     if (allDocs.length === 0) {
@@ -82,34 +58,26 @@ export class ReleasePipeline {
       return result;
     }
 
-    // 2. Filter by visibility
-    const manifest = await loadManifest(
-      this.config.workspacePath,
-      this.config.releaseConfigFile
-    );
-    const visibleDocs = this.visibilityFilter.filter(allDocs, manifest);
-    logger.info(`${visibleDocs.length} documents passed visibility filter`);
+    // 2. Filter (visibility, pattern, etc.)
+    let filteredDocs = allDocs;
+    for (const filter of this.deps.filters) {
+      filteredDocs = filter.filter(filteredDocs);
+    }
+    logger.info(`${filteredDocs.length} documents passed all filters`);
 
-    // 3. Filter by pattern
-    const patternFilter = new PatternFilter(this.config.includePattern);
-    const targetDocs = patternFilter.filter(visibleDocs);
-    logger.info(
-      `${targetDocs.length} documents matched include pattern "${this.config.includePattern}"`
-    );
-
-    if (targetDocs.length === 0) {
+    if (filteredDocs.length === 0) {
       logger.info('No documents matched filters — nothing to release.');
       return result;
     }
 
-    // 4. Process each document (parallel with allSettled)
+    // 3. Process each document (parallel with allSettled)
     const settled = await Promise.allSettled(
-      targetDocs.map((doc) => this.processDocument(doc))
+      filteredDocs.map((doc) => this.processDocument(doc))
     );
 
     for (let i = 0; i < settled.length; i++) {
       const outcome = settled[i];
-      const doc = targetDocs[i];
+      const doc = filteredDocs[i];
 
       if (outcome.status === 'fulfilled') {
         if (outcome.value.released) {
@@ -128,7 +96,7 @@ export class ReleasePipeline {
       }
     }
 
-    // 5. Summary
+    // 4. Summary
     logger.info(
       `Done. Released: ${result.released.length}, ` +
         `Skipped: ${result.skipped.length}, ` +
@@ -141,9 +109,10 @@ export class ReleasePipeline {
   private async processDocument(
     metadata: DocumentMetadata
   ): Promise<{ released: boolean }> {
-    const tag = buildTag(metadata);
+    const strategy = this.deps.namingRegistry.resolve(metadata.documentType);
+    const tag = strategy.computeTag(metadata.id, metadata.version);
 
-    const detection = await this.changeDetector.detect(
+    const detection = await this.deps.changeDetector.detect(
       metadata,
       tag,
       this.config.force
@@ -153,9 +122,12 @@ export class ReleasePipeline {
       return { released: false };
     }
 
-    const artifact = await this.packager.package(metadata, metadata.version);
+    const artifact = await this.deps.packager.package(
+      metadata,
+      metadata.version
+    );
 
-    await this.publisher.publish(
+    await this.deps.publisher.publish(
       tag,
       artifact.zipPath,
       detection.currentHash,

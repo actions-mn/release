@@ -6,6 +6,7 @@ import {
   DocumentStage
 } from '../../src/domain/types.js';
 import { DocumentType } from '../../src/domain/document-metadata.js';
+import { createDefaultRegistry } from '../../src/packaging/naming-strategy.js';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 import type { DocumentMetadata } from '../../src/domain/document-metadata.js';
@@ -17,6 +18,7 @@ function makeDoc(overrides: Partial<DocumentMetadata> = {}): DocumentMetadata {
     version: DocumentVersion.from('1', DocumentStage.fromStatus('published')),
     doctype: 'standard',
     documentType: DocumentType.Standard,
+    flavor: undefined,
     revdate: undefined,
     sourcePath: 'sources/cc-51015.adoc',
     outputDir: '',
@@ -42,7 +44,7 @@ describe('ZipPackager', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    packager = new ZipPackager();
+    packager = new ZipPackager(createDefaultRegistry());
     tmpDir = join(__dirname, 'tmp-zip-test');
     await mkdir(tmpDir, { recursive: true });
   });
