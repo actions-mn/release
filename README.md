@@ -129,18 +129,51 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## Naming Strategy Design
+
+Tag and asset naming is determined by **naming behavior**, not publisher identity. Strategies are named after what they DO (how they format tags), not WHO they're for (which SDO published the document).
+
+### Why not publisher-specific strategies?
+
+Publisher-based naming (`IeeeNamingStrategy`, `IhoNamingStrategy`, `OgcNamingStrategy`) is wrong for several reasons:
+
+1. **Publisher ≠ naming convention.** The naming convention is determined by the identifier format and edition format, not the publisher's identity. IHO and OGC use identical version-based naming — giving them separate classes duplicates identical behavior.
+
+2. **One publisher, multiple conventions.** IEEE uses `DraftSuffixNamingStrategy` for draft identifiers (extracting `-d{N}`) but falls back to `EditionNamingStrategy` for published documents. A single "IEEE strategy" would conflate two behaviors into one class.
+
+3. **Wrong abstraction level.** The strategy pattern should abstract over the WHAT (how to format a tag), not the WHO (which publisher). `EditionNamingStrategy` describes behavior. `IeeeNamingStrategy` describes an organization.
+
+4. **Unnecessary enum proliferation.** Most publishers (ISO, IEC, ITU, BIPM, OIML, UN, CSA, etc.) all use edition-based naming. Creating `DocumentType.Iso`, `DocumentType.Iec`, etc. purely to dispatch to the same strategy adds complexity without value.
+
+### Strategy Behavior Table
+
+| Strategy | Tag format | Asset format | Used by |
+|---|---|---|---|
+| `EditionNamingStrategy` | `{id}/ed{N}[-{stage}]` | `{id}-ed{N}[-{stage}].zip` | CC, ISO, IEC, ITU, BIPM, OIML, UN, CSA, M3AAWG, MPFA, PDFA, Ribose, unknown |
+| `VersionNamingStrategy` | `{id}/v{N}` | `{id}-v{N}.zip` | IHO, OGC |
+| `InternetDraftNamingStrategy` | `id-{name}/{draftN}` | `draft-ietf-{name}-{draftN}.zip` | IETF Internet-Drafts |
+| `RfcNamingStrategy` | `{id}/ed{N}` | `{id}.zip` | IETF RFCs |
+| `DraftSuffixNamingStrategy` | `{base}/{N}` (from `-d{N}` suffix) | `{id}.zip` | IEEE Drafts |
+
+### Dispatch
+
+`DocumentType` (detected from identifier prefix) maps to a naming strategy in `createDefaultRegistry()`. Multiple `DocumentType` values can map to the same strategy instance — e.g., `Iho` and `Ogc` share one `VersionNamingStrategy`.
+
 ## Release Tag Convention
 
 Each document gets its own release tag and asset, independent of other documents in the same repo. Tag naming is **data-driven** from RXL metadata — normalized docidentifier + edition + stage — so it works for any Metanorma flavor without special-casing.
 
-| Document type | Stage | Tag | Asset |
-|---|---|---|---|
-| CC standard | Published | `cc-51015/ed1.0` | `cc-51015-ed1.0.zip` |
-| CC standard | Working Draft | `cc-51015/ed2.0-wd` | `cc-51015-ed2.0-wd.zip` |
-| ISO | Published (60.60) | `iso-8601-1-2019/ed1.0` | `iso-8601-1-2019-ed1.0.zip` |
-| ISO | WD (20.20) | `iso-wd-8601-1-2026/ed2.0-wd` | `iso-wd-8601-1-2026-ed2.0-wd.zip` |
-| IETF I-D | — | `id-calext-jscalendar/32` | `draft-ietf-calext-jscalendar-32.zip` |
-| IETF RFC | Published | `rfc-8984/1` | `rfc-8984.zip` |
+| Document | Stage | Tag | Asset | Strategy |
+|---|---|---|---|---|
+| CC standard | Published | `cc-51015/ed1` | `cc-51015-ed1.zip` | Edition |
+| CC standard | Working Draft | `cc-51015/ed2-wd` | `cc-51015-ed2-wd.zip` | Edition |
+| ISO | Published | `iso-8601-1-2019/ed1` | `iso-8601-1-2019-ed1.zip` | Edition |
+| ISO | WD | `iso-wd-8601-1-2026/ed2-wd` | `iso-wd-8601-1-2026-ed2-wd.zip` | Edition |
+| IETF I-D | — | `id-calext-jscalendar/32` | `draft-ietf-calext-jscalendar-32.zip` | InternetDraft |
+| IETF RFC | Published | `rfc-8984/ed1` | `rfc-8984.zip` | Rfc |
+| IEEE Draft | — | `ieee-draft-std-987-6-2020/3` | `ieee-draft-std-987-6-2020-d3.zip` | DraftSuffix |
+| IHO | Published | `s-102/v2.1.0` | `s-102-v2.1.0.zip` | Version |
+| OGC | Published | `17-069r3/v1.0` | `17-069r3-v1.0.zip` | Version |
 
 > Published releases are **immutable** — the tag is created once and never overwritten.
 > Draft releases are **rolling** — the same tag is updated in-place as the draft evolves.

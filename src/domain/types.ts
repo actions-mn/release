@@ -1,5 +1,4 @@
 import type { DocumentMetadata } from './document-metadata.js';
-import type { ReleaseManifest } from './release-manifest.js';
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
 
@@ -217,7 +216,7 @@ export interface ArtifactResult {
 }
 
 export interface PublishResult {
-  readonly tag: string;
+  readonly tag: ReleaseTag;
   readonly url: string;
   readonly created: boolean;
 }
@@ -226,6 +225,11 @@ export interface PublishResult {
 
 export interface IDocumentExtractor {
   extract(rxlPath: string): Promise<DocumentMetadata>;
+  discover(outputDir: string): Promise<DocumentMetadata[]>;
+}
+
+export interface IDocumentFilter {
+  filter(documents: readonly DocumentMetadata[]): DocumentMetadata[];
 }
 
 export interface IChangeDetector {
@@ -303,13 +307,4 @@ export interface GitHubReleasesApi {
       }): Promise<{ data: { id: number } }>;
     };
   };
-}
-
-// ─── Filter Interfaces ─────────────────────────────────────────────────────
-
-export interface IVisibilityFilter {
-  filter(
-    documents: DocumentMetadata[],
-    manifest: ReleaseManifest
-  ): DocumentMetadata[];
 }

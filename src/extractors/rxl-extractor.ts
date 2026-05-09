@@ -5,6 +5,7 @@ import { DocumentId, DocumentStage, DocumentVersion } from '../domain/types.js';
 import type { DocumentMetadata } from '../domain/document-metadata.js';
 import { DocumentType } from '../domain/document-metadata.js';
 import type { IDocumentExtractor } from '../domain/types.js';
+import { textOf, type ParsedRxl, type XmlNode } from '../domain/rxl-schema.js';
 import { logger } from '../shared/logger.js';
 
 const XML_PARSER = new XMLParser({
@@ -17,42 +18,26 @@ const XML_PARSER = new XMLParser({
   }
 });
 
-interface ParsedRxl {
-  bibdata: {
-    docidentifier?: Array<{
-      '#text'?: string;
-      '@_type'?: string;
-      '@_primary'?: string;
-    }>;
-    edition?: string | { '#text'?: string };
-    status?: {
-      stage:
-        | string
-        | {
-            '#text'?: string;
-            '@_value'?: string;
-            '@_abbreviation'?: string;
-          };
-      substage?: { '@_value'?: string } | string;
-    };
-    title?: Array<{
-      '#text'?: string;
-      '@_language'?: string;
-      '@_type'?: string;
-    }>;
-    doctype?: string | { '#text'?: string };
-    date?: Array<{
-      '@_type'?: string;
-      on?: string;
-      '#text'?: string;
-    }>;
-    ext?: {
-      flavor?: string;
-    };
-  };
-}
-
 export class RxlExtractor implements IDocumentExtractor {
+  async discover(outputDir: string): Promise<DocumentMetadata[]> {
+    const { glob } = await import('glob');
+    const rxlFiles = await glob('**/*.rxl', { cwd: outputDir, absolute: true });
+
+    const results: DocumentMetadata[] = [];
+
+    for (const rxl of rxlFiles) {
+      try {
+        const metadata = await this.extract(rxl);
+        results.push(metadata);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to extract metadata from ${rxl}: ${message}`);
+      }
+    }
+
+    return results;
+  }
+
   async extract(rxlPath: string): Promise<DocumentMetadata> {
     const xml = await readFile(rxlPath, 'utf-8');
     const parsed = XML_PARSER.parse(xml) as ParsedRxl;
@@ -65,17 +50,17 @@ export class RxlExtractor implements IDocumentExtractor {
     const rawId = this.extractPrimaryDocIdentifier(bibdata);
     const id = DocumentId.fromRaw(rawId);
 
-    const edition = this.extractText(bibdata.edition);
+    const edition = textOf(bibdata.edition as XmlNode);
     const stage = this.extractStage(bibdata);
     const title = this.extractTitle(bibdata);
-    const doctype = this.extractText(bibdata.doctype) ?? '';
+    const doctype = textOf(bibdata.doctype as XmlNode) ?? '';
     const revdate = this.extractRevdate(bibdata);
     const flavor = bibdata.ext?.flavor;
 
     const outputDir = dirname(rxlPath);
     const formats = await this.detectFormats(outputDir);
     const sourcePath = this.resolveSourcePath(outputDir);
-    const documentType = this.detectDocumentType(rawId);
+    const documentType = DocumentType.fromIdentifier(rawId);
     const version = DocumentVersion.from(edition, stage);
 
     return {
@@ -118,7 +103,7 @@ export class RxlExtractor implements IDocumentExtractor {
     }
 
     const stageNode = status.stage;
-    const stageText = this.extractTextFromNode(stageNode);
+    const stageText = textOf(stageNode as XmlNode);
     const stageValue =
       typeof stageNode === 'object' && stageNode !== null
         ? stageNode['@_value']
@@ -128,7 +113,7 @@ export class RxlExtractor implements IDocumentExtractor {
       typeof substageNode === 'object' && substageNode !== null
         ? substageNode['@_value']
         : undefined;
-    const substageText = this.extractTextFromNode(substageNode);
+    const substageText = textOf(substageNode as XmlNode);
 
     const numericStage =
       stageValue ??
@@ -182,22 +167,6 @@ export class RxlExtractor implements IDocumentExtractor {
     return undefined;
   }
 
-  private extractText(
-    value: string | { '#text'?: string } | undefined
-  ): string | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value === 'string') return value;
-    return value['#text'];
-  }
-
-  private extractTextFromNode(
-    value: string | { '#text'?: string; [key: string]: unknown } | undefined
-  ): string | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value === 'string') return value;
-    return value['#text'];
-  }
-
   private async detectFormats(outputDir: string): Promise<string[]> {
     const extensions: string[] = [];
     try {
@@ -229,32 +198,4 @@ export class RxlExtractor implements IDocumentExtractor {
     sourceParts.push(`${docDir}.adoc`);
     return sourceParts.join('/');
   }
-
-  detectDocumentType(rawId: string): DocumentType {
-    if (/^RFC\s/i.test(rawId)) return DocumentType.IetfRfc;
-    if (/^draft-/i.test(rawId)) return DocumentType.IetfDraft;
-    return DocumentType.Standard;
-  }
-}
-
-export async function discoverDocuments(
-  outputDir: string,
-  extractor: IDocumentExtractor
-): Promise<DocumentMetadata[]> {
-  const { glob } = await import('glob');
-  const rxlFiles = await glob('**/*.rxl', { cwd: outputDir, absolute: true });
-
-  const results: DocumentMetadata[] = [];
-
-  for (const rxl of rxlFiles) {
-    try {
-      const metadata = await extractor.extract(rxl);
-      results.push(metadata);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn(`Failed to extract metadata from ${rxl}: ${message}`);
-    }
-  }
-
-  return results;
 }

@@ -46,6 +46,24 @@ describe('ReleaseManifest', () => {
       });
       expect(manifest.listAll()).toHaveLength(1);
     });
+
+    it('rejects path traversal in source', () => {
+      expect(() =>
+        ReleaseManifest.parse({
+          documents: [{ source: '../../etc/passwd' }]
+        })
+      ).toThrow('Path traversal');
+    });
+
+    it('handles duplicate source entries (last wins)', () => {
+      const manifest = ReleaseManifest.parse({
+        documents: [
+          { source: 'sources/cc-51015.adoc' },
+          { source: 'sources/cc-51015.adoc', visibility: 'private' }
+        ]
+      });
+      expect(manifest.isPublic('sources/cc-51015.adoc')).toBe(false);
+    });
   });
 
   describe('allPublic', () => {

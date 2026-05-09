@@ -16,6 +16,7 @@ function makeDoc(sourcePath: string, rawId: string): DocumentMetadata {
     version: DocumentVersion.from('1', DocumentStage.fromStatus('published')),
     doctype: 'standard',
     documentType: DocumentType.Standard,
+    flavor: undefined,
     revdate: undefined,
     sourcePath,
     outputDir: '/tmp/test',
@@ -25,55 +26,55 @@ function makeDoc(sourcePath: string, rawId: string): DocumentMetadata {
 
 describe('VisibilityFilter', () => {
   it('keeps all documents when manifest is allPublic', () => {
-    const filter = new VisibilityFilter();
-    const docs = [makeDoc('a.adoc', 'CC 1'), makeDoc('b.adoc', 'CC 2')];
     const manifest = ReleaseManifest.allPublic();
+    const filter = new VisibilityFilter(manifest);
+    const docs = [makeDoc('a.adoc', 'CC 1'), makeDoc('b.adoc', 'CC 2')];
 
-    const result = filter.filter(docs, manifest);
+    const result = filter.filter(docs);
     expect(result).toHaveLength(2);
   });
 
   it('removes private documents', () => {
-    const filter = new VisibilityFilter();
-    const docs = [
-      makeDoc('sources/cc-51015.adoc', 'CC 51015'),
-      makeDoc('sources/cc-51026.adoc', 'CC 51026')
-    ];
     const manifest = ReleaseManifest.parse({
       documents: [
         { source: 'sources/cc-51015.adoc' },
         { source: 'sources/cc-51026.adoc', visibility: 'private' }
       ]
     });
+    const filter = new VisibilityFilter(manifest);
+    const docs = [
+      makeDoc('sources/cc-51015.adoc', 'CC 51015'),
+      makeDoc('sources/cc-51026.adoc', 'CC 51026')
+    ];
 
-    const result = filter.filter(docs, manifest);
+    const result = filter.filter(docs);
     expect(result).toHaveLength(1);
     expect(result[0].id.toString()).toBe('cc-51015');
   });
 
   it('removes documents not in manifest', () => {
-    const filter = new VisibilityFilter();
+    const manifest = ReleaseManifest.parse({
+      documents: [{ source: 'sources/cc-51015.adoc' }]
+    });
+    const filter = new VisibilityFilter(manifest);
     const docs = [
       makeDoc('sources/cc-51015.adoc', 'CC 51015'),
       makeDoc('sources/cc-99999.adoc', 'CC 99999')
     ];
-    const manifest = ReleaseManifest.parse({
-      documents: [{ source: 'sources/cc-51015.adoc' }]
-    });
 
-    const result = filter.filter(docs, manifest);
+    const result = filter.filter(docs);
     expect(result).toHaveLength(1);
     expect(result[0].id.toString()).toBe('cc-51015');
   });
 
   it('returns empty when all documents are private', () => {
-    const filter = new VisibilityFilter();
-    const docs = [makeDoc('a.adoc', 'CC 1')];
     const manifest = ReleaseManifest.parse({
       documents: [{ source: 'a.adoc', visibility: 'private' }]
     });
+    const filter = new VisibilityFilter(manifest);
+    const docs = [makeDoc('a.adoc', 'CC 1')];
 
-    const result = filter.filter(docs, manifest);
+    const result = filter.filter(docs);
     expect(result).toHaveLength(0);
   });
 });

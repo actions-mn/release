@@ -14,6 +14,7 @@ import type { DocumentMetadata } from '../src/domain/document-metadata.js';
 import type { ReleaseConfig } from '../src/input-helper.js';
 import { ReleasePipeline, type PipelineDependencies } from '../src/pipeline.js';
 import { ReleaseManifest } from '../src/domain/release-manifest.js';
+import { createDefaultRegistry } from '../src/packaging/naming-strategy.js';
 
 function makeDoc(
   rawId: string,
@@ -27,7 +28,7 @@ function makeDoc(
     title: rawId,
     version: DocumentVersion.from(edition, DocumentStage.fromStatus(status)),
     doctype: 'standard',
-    documentType: DocumentType.Standard,
+    documentType: DocumentType.fromIdentifier(rawId),
     flavor: undefined,
     revdate: undefined,
     sourcePath: sourcePath ?? `sources/${id.toString()}.adoc`,
@@ -36,7 +37,7 @@ function makeDoc(
   };
 }
 
-function makeConfig(): ReleaseConfig {
+function makeConfig(overrides: Partial<ReleaseConfig> = {}): ReleaseConfig {
   return {
     sourcePath: '.',
     outputDir: '_site',
@@ -45,7 +46,8 @@ function makeConfig(): ReleaseConfig {
     force: false,
     includePattern: '*',
     token: 'fake-token',
-    repo: { owner: 'test', repo: 'repo' }
+    repo: { owner: 'test', repo: 'repo' },
+    ...overrides
   };
 }
 
@@ -53,20 +55,22 @@ function createMockDeps(
   options: {
     changedDocs?: string[];
     manifest?: ReleaseManifest;
+    includePattern?: string;
   } = {}
 ): {
   deps: PipelineDependencies;
+  mockDiscover: ReturnType<typeof vi.fn>;
 } {
   const changedSet = new Set(options.changedDocs ?? ['CC 51015']);
 
+  const mockDiscover = vi.fn();
+
   const extractor = {
-    extract: vi.fn().mockImplementation((rxlPath: string) => {
-      const fileName = rxlPath.split('/').pop()?.replace('.rxl', '') ?? '';
-      return Promise.resolve(
-        makeDoc(fileName.replace(/-/g, ' ').toUpperCase())
-      );
-    })
+    discover: mockDiscover,
+    extract: vi.fn()
   };
+
+  const manifest = options.manifest ?? ReleaseManifest.allPublic();
 
   const changeDetector = {
     detect: vi
@@ -92,38 +96,40 @@ function createMockDeps(
 
   const publisher = {
     publish: vi.fn().mockResolvedValue({
-      tag: 'test/ed1',
+      tag: ReleaseTag.create('test/ed1', false),
       url: 'https://github.com/test/repo/releases/tag/test/ed1',
       created: true
     } as PublishResult)
   };
 
   const visibilityFilter = {
-    filter: vi.fn().mockImplementation((docs: DocumentMetadata[]) => {
-      const manifest = options.manifest ?? ReleaseManifest.allPublic();
-      return docs.filter((doc) => manifest.isPublic(doc.sourcePath));
+    filter: vi
+      .fn()
+      .mockImplementation((docs: readonly DocumentMetadata[]) =>
+        docs.filter((doc) => manifest.isPublic(doc.sourcePath))
+      )
+  };
+
+  const patternFilter = {
+    filter: vi.fn().mockImplementation((docs: readonly DocumentMetadata[]) => {
+      const pattern = options.includePattern ?? '*';
+      if (pattern === '*') return [...docs];
+      return docs.filter((doc) => doc.id.toString() === pattern);
     })
   };
 
   return {
     deps: {
       extractor,
+      filters: [visibilityFilter, patternFilter],
       changeDetector,
       packager,
       publisher,
-      visibilityFilter
-    }
+      namingRegistry: createDefaultRegistry()
+    },
+    mockDiscover
   };
 }
-
-vi.mock('../src/extractors/rxl-extractor.js', async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import('../src/extractors/rxl-extractor.js')>();
-  return {
-    ...original,
-    discoverDocuments: vi.fn()
-  };
-});
 
 describe('ReleasePipeline', () => {
   beforeEach(() => {
@@ -132,16 +138,16 @@ describe('ReleasePipeline', () => {
 
   it('happy path: 3 docs, 1 changed → 1 released, 2 skipped', async () => {
     const config = makeConfig();
-    const { deps } = createMockDeps({ changedDocs: ['cc-51015'] });
+    const { deps, mockDiscover } = createMockDeps({
+      changedDocs: ['cc-51015']
+    });
     const docs = [
       makeDoc('CC 51015'),
       makeDoc('CC 51024'),
       makeDoc('CC 51026')
     ];
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue(docs);
+    mockDiscover.mockResolvedValue(docs);
 
     const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
@@ -154,12 +160,10 @@ describe('ReleasePipeline', () => {
 
   it('all unchanged → all skipped', async () => {
     const config = makeConfig();
-    const { deps } = createMockDeps({ changedDocs: [] });
+    const { deps, mockDiscover } = createMockDeps({ changedDocs: [] });
     const docs = [makeDoc('CC 51015'), makeDoc('CC 51024')];
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue(docs);
+    mockDiscover.mockResolvedValue(docs);
 
     const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
@@ -169,19 +173,17 @@ describe('ReleasePipeline', () => {
   });
 
   it('force mode → all released', async () => {
-    const config = { ...makeConfig(), force: true };
-    const allChangedDeps = createMockDeps();
-    allChangedDeps.deps.changeDetector.detect = vi.fn().mockResolvedValue({
+    const config = makeConfig({ force: true });
+    const { deps, mockDiscover } = createMockDeps();
+    deps.changeDetector.detect = vi.fn().mockResolvedValue({
       changed: true,
       currentHash: ContentHash.fromString('abc')
     });
     const docs = [makeDoc('CC 51015')];
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue(docs);
+    mockDiscover.mockResolvedValue(docs);
 
-    const pipeline = new ReleasePipeline(config, allChangedDeps.deps);
+    const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
 
     expect(result.released).toHaveLength(1);
@@ -189,7 +191,9 @@ describe('ReleasePipeline', () => {
 
   it('one document fails → others continue', async () => {
     const config = makeConfig();
-    const { deps } = createMockDeps({ changedDocs: ['cc-51015', 'cc-51024'] });
+    const { deps, mockDiscover } = createMockDeps({
+      changedDocs: ['cc-51015', 'cc-51024']
+    });
     deps.packager.package = vi
       .fn()
       .mockImplementationOnce(() => {
@@ -199,9 +203,7 @@ describe('ReleasePipeline', () => {
 
     const docs = [makeDoc('CC 51015'), makeDoc('CC 51024')];
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue(docs);
+    mockDiscover.mockResolvedValue(docs);
 
     const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
@@ -212,11 +214,9 @@ describe('ReleasePipeline', () => {
 
   it('empty site → 0 documents, no errors', async () => {
     const config = makeConfig();
-    const { deps } = createMockDeps();
+    const { deps, mockDiscover } = createMockDeps();
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue([]);
+    mockDiscover.mockResolvedValue([]);
 
     const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
@@ -234,20 +234,27 @@ describe('ReleasePipeline', () => {
         { source: 'sources/cc-51026.adoc', visibility: 'private' }
       ]
     } as any);
-    const { deps } = createMockDeps({
+    const { deps, mockDiscover } = createMockDeps({
       changedDocs: ['cc-51015', 'cc-51026'],
       manifest
     });
-    deps.visibilityFilter.filter = vi
-      .fn()
-      .mockImplementation((docs: DocumentMetadata[]) =>
-        docs.filter((doc) => manifest.isPublic(doc.sourcePath))
-      );
+    deps.filters = [
+      {
+        filter: vi
+          .fn()
+          .mockImplementation((docs: readonly DocumentMetadata[]) =>
+            docs.filter((doc) => manifest.isPublic(doc.sourcePath))
+          )
+      },
+      {
+        filter: vi
+          .fn()
+          .mockImplementation((docs: readonly DocumentMetadata[]) => [...docs])
+      }
+    ];
     const docs = [makeDoc('CC 51015'), makeDoc('CC 51026')];
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue(docs);
+    mockDiscover.mockResolvedValue(docs);
 
     const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
@@ -257,18 +264,34 @@ describe('ReleasePipeline', () => {
   });
 
   it('pattern filter narrows scope', async () => {
-    const config = { ...makeConfig(), includePattern: 'cc-51015' };
-    const { deps } = createMockDeps({ changedDocs: ['cc-51015'] });
+    const config = makeConfig({ includePattern: 'cc-51015' });
+    const { deps, mockDiscover } = createMockDeps({
+      changedDocs: ['cc-51015'],
+      includePattern: 'cc-51015'
+    });
     const docs = [makeDoc('CC 51015'), makeDoc('CC 51024')];
 
-    const { discoverDocuments } =
-      await import('../src/extractors/rxl-extractor.js');
-    vi.mocked(discoverDocuments).mockResolvedValue(docs);
+    mockDiscover.mockResolvedValue(docs);
 
     const pipeline = new ReleasePipeline(config, deps);
     const result = await pipeline.execute();
 
     expect(result.released).toHaveLength(1);
     expect(result.released[0].id.toString()).toBe('cc-51015');
+  });
+
+  it('calls extractor.discover with correct output path', async () => {
+    const config = makeConfig({
+      workspacePath: '/workspace',
+      outputDir: '_site'
+    });
+    const { deps, mockDiscover } = createMockDeps();
+
+    mockDiscover.mockResolvedValue([]);
+
+    const pipeline = new ReleasePipeline(config, deps);
+    await pipeline.execute();
+
+    expect(mockDiscover).toHaveBeenCalledWith('/workspace/_site');
   });
 });
