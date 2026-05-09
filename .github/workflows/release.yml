@@ -1,24 +1,99 @@
 name: Release
 
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., 1.2.0)'
-        required: false
-        type: string
-      create_release:
-        description: 'Create a GitHub Release'
-        type: boolean
-        default: true
-
 permissions:
   contents: write
   id-token: write
 
+on:
+  workflow_dispatch:
+    inputs:
+      next_version:
+        description: |
+          Next release version. Possible values: x.y.z, major, minor, patch.
+          Use 'skip' to release the current version without bumping.
+        required: true
+        default: 'patch'
+  repository_dispatch:
+    types: [do-release]
+
 jobs:
   release:
-    uses: actions-mn/shared/.github/workflows/release.yml@main
-    with:
-      version: ${{ inputs.version }}
-      create_release: ${{ inputs.create_release }}
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          for i in {1..3}; do
+            npm ci && break || sleep 10
+          done
+
+      - name: Compute next version
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          NEXT_INPUT="${{ github.event.inputs.next_version || 'patch' }}"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "$NEXT_INPUT" in
+            major)   NEXT="$((MAJOR + 1)).0.0" ;;
+            minor)   NEXT="$MAJOR.$((MINOR + 1)).0" ;;
+            patch)   NEXT="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+            skip)    NEXT="$CURRENT" ;;
+            *)       NEXT="$NEXT_INPUT" ;;
+          esac
+
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "version=$NEXT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Releasing: $CURRENT → $NEXT"
+
+      - name: Update package.json version
+        if: steps.version.outputs.version != ''
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Run tests
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit and tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add package.json dist
+          git commit -m "chore: release v$VERSION" || echo "No changes to commit"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin main
+          git push origin "v$VERSION"
+
+      - name: Update major version tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          git tag -f "v$MAJOR" "v$VERSION"
+          git push origin "v$MAJOR" --force
+          echo "Updated v$MAJOR → v$VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
