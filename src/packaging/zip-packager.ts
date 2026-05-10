@@ -53,9 +53,9 @@ export class ZipPackager implements IArtifactPackager {
         if (!ext || !entry.stats || entry.stats.isDirectory()) {
           return false;
         }
-        // Only include files whose base name matches the document ID
+        // Only include files whose base name exactly matches the document
         const baseName = entry.name.replace(/\.[^.]+$/, '');
-        if (!baseName.startsWith(docIdPrefix)) {
+        if (baseName !== docIdPrefix) {
           return false;
         }
         entry.name = `${canonicalBase}${ext}`;
