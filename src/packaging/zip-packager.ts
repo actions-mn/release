@@ -22,11 +22,13 @@ export class ZipPackager implements IArtifactPackager {
       metadata.version
     );
     const zipPath = join(tmpdir(), `mn-release-${assetName}`);
+    const docIdPrefix = metadata.id.fileName;
 
     await this.createZipWithCanonicalNames(
       metadata.outputDir,
       zipPath,
-      canonicalBase
+      canonicalBase,
+      docIdPrefix
     );
 
     const stats = await stat(zipPath);
@@ -36,7 +38,8 @@ export class ZipPackager implements IArtifactPackager {
   private async createZipWithCanonicalNames(
     sourceDir: string,
     outputPath: string,
-    canonicalBase: string
+    canonicalBase: string,
+    docIdPrefix: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const output = createWriteStream(outputPath);
@@ -48,9 +51,15 @@ export class ZipPackager implements IArtifactPackager {
       archive.pipe(output);
       archive.directory(sourceDir, false, (entry) => {
         const ext = extname(entry.name);
-        if (ext && entry.stats && !entry.stats.isDirectory()) {
-          entry.name = `${canonicalBase}${ext}`;
+        if (!ext || !entry.stats || entry.stats.isDirectory()) {
+          return false;
         }
+        // Only include files whose base name matches the document ID
+        const baseName = entry.name.replace(/\.[^.]+$/, '');
+        if (!baseName.startsWith(docIdPrefix)) {
+          return false;
+        }
+        entry.name = `${canonicalBase}${ext}`;
         return entry;
       });
       archive.finalize();

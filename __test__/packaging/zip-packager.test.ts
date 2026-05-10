@@ -92,8 +92,8 @@ describe('ZipPackager', () => {
     const outputDir = join(tmpDir, 'output');
     const subDir = join(outputDir, 'subdir');
     await mkdir(subDir, { recursive: true });
-    await writeFile(join(outputDir, 'root.html'), '<html/>');
-    await writeFile(join(subDir, 'nested.pdf'), 'pdf');
+    await writeFile(join(outputDir, 'cc-51015.html'), '<html/>');
+    await writeFile(join(subDir, 'cc-51015.pdf'), 'pdf');
 
     const doc = makeDoc({ outputDir });
     const result = await packager.package(doc, doc.version);
@@ -106,12 +106,54 @@ describe('ZipPackager', () => {
     const outputDir = join(tmpDir, 'output');
     await mkdir(outputDir, { recursive: true });
     await writeFile(join(outputDir, 'Makefile'), 'all:');
-    await writeFile(join(outputDir, 'doc.html'), '<html/>');
+    await writeFile(join(outputDir, 'cc-51015.html'), '<html/>');
 
     const doc = makeDoc({ outputDir });
     const result = await packager.package(doc, doc.version);
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toContain('cc-51015-ed1.html');
+    expect(entries).not.toContain('cc-51015-ed1');
+  });
+
+  it('excludes collection-level files that do not match document ID', async () => {
+    const outputDir = join(tmpDir, 'output');
+    await mkdir(outputDir, { recursive: true });
+    // Document-specific files
+    await writeFile(join(outputDir, 'cc-51015.html'), '<html>doc</html>');
+    await writeFile(join(outputDir, 'cc-51015.pdf'), 'pdf');
+    await writeFile(join(outputDir, 'cc-51015.rxl'), '<bibdata/>');
+    // Collection-level files (different base name)
+    await writeFile(
+      join(outputDir, 'documents.html'),
+      '<html>collection</html>'
+    );
+    await writeFile(join(outputDir, 'documents.xml'), '<collection/>');
+    await writeFile(join(outputDir, 'index.html'), '<html>index</html>');
+
+    const doc = makeDoc({ outputDir });
+    const result = await packager.package(doc, doc.version);
+
+    const entries = await readZipEntries(result.zipPath);
+    expect(entries).toEqual([
+      'cc-51015-ed1.html',
+      'cc-51015-ed1.pdf',
+      'cc-51015-ed1.rxl'
+    ]);
+    expect(entries).not.toContain('cc-51015-ed1.xml');
+  });
+
+  it('excludes files not matching document ID prefix', async () => {
+    const outputDir = join(tmpDir, 'output');
+    await mkdir(outputDir, { recursive: true });
+    await writeFile(join(outputDir, 'cc-51015.html'), '<html/>');
+    await writeFile(join(outputDir, 'cc-51024.html'), '<html>other doc</html>');
+    await writeFile(join(outputDir, 'other.txt'), 'junk');
+
+    const doc = makeDoc({ outputDir });
+    const result = await packager.package(doc, doc.version);
+
+    const entries = await readZipEntries(result.zipPath);
+    expect(entries).toEqual(['cc-51015-ed1.html']);
   });
 });
