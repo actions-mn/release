@@ -127,7 +127,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     assetPath: string
   ): Promise<void> {
     const fileStat = await stat(assetPath);
-    const fileName = basename(assetPath);
+    const fileName = basename(assetPath).replace(/^mn-release-/, '');
     const fileStream = createReadStream(assetPath);
 
     await this.octokit.rest.repos.uploadReleaseAsset({
