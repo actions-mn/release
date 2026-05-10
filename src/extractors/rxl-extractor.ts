@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'fs/promises';
-import { dirname, extname } from 'path';
+import { basename, dirname, extname } from 'path';
 import { XMLParser } from 'fast-xml-parser';
 import { DocumentId, DocumentStage, DocumentVersion } from '../domain/types.js';
 import type { DocumentMetadata } from '../domain/document-metadata.js';
@@ -62,6 +62,7 @@ export class RxlExtractor implements IDocumentExtractor {
     const sourcePath = this.resolveSourcePath(outputDir);
     const documentType = DocumentType.fromIdentifier(rawId);
     const version = DocumentVersion.from(edition, stage);
+    const fileBaseName = basename(rxlPath, extname(rxlPath));
 
     return {
       id,
@@ -73,7 +74,8 @@ export class RxlExtractor implements IDocumentExtractor {
       revdate,
       sourcePath,
       outputDir,
-      formats
+      formats,
+      fileBaseName
     };
   }
 

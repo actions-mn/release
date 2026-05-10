@@ -23,7 +23,8 @@ function makeMetadata(outputDir: string): DocumentMetadata {
     revdate: undefined,
     sourcePath: 'sources/cc-51015.adoc',
     outputDir,
-    formats: ['html']
+    formats: ['html'],
+    fileBaseName: 'cc-51015'
   };
 }
 

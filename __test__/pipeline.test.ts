@@ -33,7 +33,8 @@ function makeDoc(
     revdate: undefined,
     sourcePath: sourcePath ?? `sources/${id.toString()}.adoc`,
     outputDir: `/tmp/site/${id.toString()}`,
-    formats: ['html', 'pdf']
+    formats: ['html', 'pdf'],
+    fileBaseName: id.fileName
   };
 }
 

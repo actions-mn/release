@@ -63,4 +63,5 @@ export interface DocumentMetadata {
   readonly sourcePath: string;
   readonly outputDir: string;
   readonly formats: string[];
+  readonly fileBaseName: string;
 }

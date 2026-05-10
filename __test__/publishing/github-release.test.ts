@@ -24,6 +24,7 @@ function makeDoc(overrides: Partial<DocumentMetadata> = {}): DocumentMetadata {
     sourcePath: 'sources/cc-51015.adoc',
     outputDir: '',
     formats: ['html'],
+    fileBaseName: 'cc-51015',
     ...overrides
   };
 }

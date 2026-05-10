@@ -10,8 +10,9 @@ import { DocumentType } from '../../src/domain/document-metadata.js';
 import type { DocumentMetadata } from '../../src/domain/document-metadata.js';
 
 function makeDoc(sourcePath: string, rawId: string): DocumentMetadata {
+  const id = DocumentId.fromRaw(rawId);
   return {
-    id: DocumentId.fromRaw(rawId),
+    id,
     title: 'Test',
     version: DocumentVersion.from('1', DocumentStage.fromStatus('published')),
     doctype: 'standard',
@@ -20,7 +21,8 @@ function makeDoc(sourcePath: string, rawId: string): DocumentMetadata {
     revdate: undefined,
     sourcePath,
     outputDir: '/tmp/test',
-    formats: ['html']
+    formats: ['html'],
+    fileBaseName: id.fileName
   };
 }
 

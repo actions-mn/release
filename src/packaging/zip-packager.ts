@@ -22,13 +22,12 @@ export class ZipPackager implements IArtifactPackager {
       metadata.version
     );
     const zipPath = join(tmpdir(), `mn-release-${assetName}`);
-    const docIdPrefix = metadata.id.fileName;
 
     await this.createZipWithCanonicalNames(
       metadata.outputDir,
       zipPath,
       canonicalBase,
-      docIdPrefix
+      metadata.fileBaseName
     );
 
     const stats = await stat(zipPath);
