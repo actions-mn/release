@@ -41,7 +41,7 @@ describe('RxlExtractor', () => {
         join(FIXTURES_DIR, 'iso-rice-wd.rxl')
       );
       expect(result.id.toString()).toBe('iso-awi-17301-1-2016');
-      expect(result.version.tagComponent).toBe('ed2-wd');
+      expect(result.version.tagComponent).toBe('ed2-20.00');
       expect(result.version.isPreRelease).toBe(true);
       expect(result.flavor).toBe('iso');
     });
@@ -51,7 +51,7 @@ describe('RxlExtractor', () => {
         join(FIXTURES_DIR, 'iso-rice-cd.rxl')
       );
       expect(result.id.toString()).toBe('iso-cd-17301-1-2016');
-      expect(result.version.tagComponent).toBe('ed2-cd');
+      expect(result.version.tagComponent).toBe('ed2-30.00');
       expect(result.version.isPreRelease).toBe(true);
       expect(result.flavor).toBe('iso');
     });

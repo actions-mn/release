@@ -42,7 +42,10 @@ export class DocumentId {
 }
 
 export class DocumentStage {
-  private constructor(private readonly name: string) {}
+  private constructor(
+    private readonly name: string,
+    private readonly code?: string
+  ) {}
 
   private static readonly PUBLISHED_STAGES = new Set([
     'published',
@@ -70,14 +73,24 @@ export class DocumentStage {
     return new DocumentStage(normalized);
   }
 
-  static fromIsoStage(docstage: number, _docsubstage: number): DocumentStage {
-    if (docstage === 20) return new DocumentStage('working-draft');
-    if (docstage === 30) return new DocumentStage('committee-draft');
-    if (docstage === 40) return new DocumentStage('draft-standard');
-    if (docstage === 50) return new DocumentStage('final-draft');
-    if (docstage === 60) return new DocumentStage('published');
-    if (docstage === 95) return new DocumentStage('withdrawn');
-    return new DocumentStage('working-draft');
+  static fromStageCode(code: string, name: string): DocumentStage {
+    return new DocumentStage(name, code);
+  }
+
+  static fromIsoStage(docstage: number, docsubstage: number): DocumentStage {
+    let name: string;
+    if (docstage === 20) name = 'working-draft';
+    else if (docstage === 30) name = 'committee-draft';
+    else if (docstage === 40) name = 'draft-standard';
+    else if (docstage === 50) name = 'final-draft';
+    else if (docstage === 60) name = 'published';
+    else if (docstage === 95) name = 'withdrawn';
+    else name = 'working-draft';
+
+    return new DocumentStage(
+      name,
+      `${docstage}.${String(docsubstage).padStart(2, '0')}`
+    );
   }
 
   get isPublished(): boolean {
@@ -94,6 +107,7 @@ export class DocumentStage {
 
   get tagSuffix(): string {
     if (this.isPublished) return '';
+    if (this.code) return this.code;
     return DocumentStage.STAGE_ABBREVS[this.name] ?? this.name;
   }
 
