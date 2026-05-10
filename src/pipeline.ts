@@ -70,29 +70,23 @@ export class ReleasePipeline {
       return result;
     }
 
-    // 3. Process each document (parallel with allSettled)
-    const settled = await Promise.allSettled(
-      filteredDocs.map((doc) => this.processDocument(doc))
-    );
-
-    for (let i = 0; i < settled.length; i++) {
-      const outcome = settled[i];
-      const doc = filteredDocs[i];
-
-      if (outcome.status === 'fulfilled') {
-        if (outcome.value.released) {
+    // 3. Process documents sequentially to avoid GitHub API rate limits
+    for (const doc of filteredDocs) {
+      try {
+        const outcome = await this.processDocument(doc);
+        if (outcome.released) {
           result.released.push(doc);
           logger.info(`RELEASED: ${doc.id} (${doc.version.tagComponent})`);
         } else {
           result.skipped.push(doc);
           logger.info(`SKIPPED: ${doc.id} (unchanged)`);
         }
-      } else {
+      } catch (error) {
         result.failed.push({
           document: doc,
-          error: outcome.reason
+          error: error instanceof Error ? error : new Error(String(error))
         });
-        logger.error(`FAILED: ${doc.id}: ${outcome.reason}`);
+        logger.error(`FAILED: ${doc.id}: ${error}`);
       }
     }
 
