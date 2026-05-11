@@ -60,6 +60,10 @@ export class ReleaseManifest {
     return new ReleaseManifest(new Map(), true);
   }
 
+  static allPrivate(): ReleaseManifest {
+    return new ReleaseManifest(new Map(), false);
+  }
+
   getVisibility(sourcePath: string): Visibility {
     if (this.isAllPublic) return Visibility.Public;
     return this.entries.get(sourcePath)?.visibility ?? Visibility.Private;

@@ -6,7 +6,8 @@ import { logger } from '../shared/logger.js';
 
 export async function loadManifest(
   sourcePath: string,
-  fileName: string
+  fileName: string,
+  defaultVisibility: 'public' | 'private' = 'public'
 ): Promise<ReleaseManifest> {
   const filePath = join(sourcePath, fileName);
 
@@ -19,9 +20,11 @@ export async function loadManifest(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       logger.info(
-        `Release manifest not found at ${filePath}, treating all documents as public`
+        `Release manifest not found at ${filePath}, default visibility: ${defaultVisibility}`
       );
-      return ReleaseManifest.allPublic();
+      return defaultVisibility === 'public'
+        ? ReleaseManifest.allPublic()
+        : ReleaseManifest.allPrivate();
     }
     throw error;
   }
