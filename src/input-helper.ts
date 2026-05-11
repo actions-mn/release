@@ -7,6 +7,7 @@ export interface ReleaseConfig {
   releaseConfigFile: string;
   workspacePath: string;
 
+  defaultVisibility: 'public' | 'private';
   force: boolean;
   includePattern: string;
   token: string;
@@ -21,6 +22,7 @@ export async function getInputs(): Promise<ReleaseConfig> {
     releaseConfigFile: getReleaseConfigFile(),
     workspacePath: getWorkspacePath(),
 
+    defaultVisibility: getDefaultVisibility(),
     force: getBooleanInput('force', 'false'),
     includePattern: getIncludePattern(),
     token: getToken(),
@@ -47,6 +49,16 @@ function getReleaseConfigFile(): string {
 
 function getIncludePattern(): string {
   return getInput('include-pattern') || '*';
+}
+
+function getDefaultVisibility(): 'public' | 'private' {
+  const value = getInput('default-visibility') || 'public';
+  if (value !== 'public' && value !== 'private') {
+    throw new Error(
+      `Invalid default-visibility: ${value}. Must be 'public' or 'private'.`
+    );
+  }
+  return value as 'public' | 'private';
 }
 
 function getToken(): string {

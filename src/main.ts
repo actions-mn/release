@@ -21,7 +21,8 @@ async function run(): Promise<void> {
 
     const manifest = await loadManifest(
       config.workspacePath,
-      config.releaseConfigFile
+      config.releaseConfigFile,
+      config.defaultVisibility
     );
 
     const pipeline = new ReleasePipeline(config, {

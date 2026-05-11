@@ -26,6 +26,10 @@ inputs:
     description: 'Glob pattern to filter documents for release (e.g. "cc-*")'
     required: false
     default: '*'
+  default-visibility:
+    description: 'Default visibility for documents not listed in release manifest (public or private)'
+    required: false
+    default: 'public'
   token:
     description: 'GitHub token for creating releases'
     required: false
