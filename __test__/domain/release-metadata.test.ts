@@ -37,6 +37,7 @@ describe('ReleaseMetadata', () => {
     const meta = ReleaseMetadata.fromDocument(doc, channels);
     const json = meta.toJSON();
 
+    expect(json.version).toBe(1);
     expect(json.id).toBe('cc-51015');
     expect(json.title).toBe('Test Document');
     expect(json.edition).toBe('1');
@@ -74,6 +75,7 @@ describe('parseReleaseMetadata', () => {
 
 <!-- mn-release-metadata
 {
+  "version": 1,
   "id": "cc-51015",
   "title": "Test",
   "edition": "1",
