@@ -13,7 +13,7 @@ import { DocumentType } from '../src/domain/document-metadata.js';
 import type { DocumentMetadata } from '../src/domain/document-metadata.js';
 import type { ReleaseConfig } from '../src/input-helper.js';
 import { ReleasePipeline, type PipelineDependencies } from '../src/pipeline.js';
-import { ReleaseManifest } from '../src/domain/release-manifest.js';
+import { ChannelManifest } from '../src/domain/channel-manifest.js';
 import { createDefaultRegistry } from '../src/packaging/naming-strategy.js';
 
 function makeDoc(
@@ -58,7 +58,7 @@ function makeConfig(overrides: Partial<ReleaseConfig> = {}): ReleaseConfig {
 function createMockDeps(
   options: {
     changedDocs?: string[];
-    manifest?: ReleaseManifest;
+    manifest?: ChannelManifest;
     includePattern?: string;
   } = {}
 ): {
@@ -74,7 +74,7 @@ function createMockDeps(
     extract: vi.fn()
   };
 
-  const manifest = options.manifest ?? ReleaseManifest.allPublic();
+  const manifest = options.manifest ?? ChannelManifest.allPublic();
 
   const changeDetector = {
     detect: vi
@@ -107,11 +107,11 @@ function createMockDeps(
     } as PublishResult)
   };
 
-  const visibilityFilter = {
+  const channelManifestFilter = {
     filter: vi
       .fn()
       .mockImplementation((docs: readonly DocumentMetadata[]) =>
-        docs.filter((doc) => manifest.isPublic(doc.sourcePath))
+        docs.filter((doc) => manifest.resolve(doc).shouldRelease)
       )
   };
 
@@ -126,11 +126,12 @@ function createMockDeps(
   return {
     deps: {
       extractor,
-      filters: [visibilityFilter, patternFilter],
+      filters: [channelManifestFilter, patternFilter],
       changeDetector,
       packager,
       publisher,
-      namingRegistry: createDefaultRegistry()
+      namingRegistry: createDefaultRegistry(),
+      manifest
     },
     mockDiscover
   };
@@ -237,12 +238,12 @@ describe('ReleasePipeline', () => {
 
   it('visibility filter removes private docs', async () => {
     const config = makeConfig();
-    const manifest = ReleaseManifest.parse({
+    const manifest = ChannelManifest.parse({
       documents: [
         { source: 'sources/cc-51015.adoc' },
         { source: 'sources/cc-51026.adoc', visibility: 'private' }
       ]
-    } as any);
+    });
     const { deps, mockDiscover } = createMockDeps({
       changedDocs: ['cc-51015', 'cc-51026'],
       manifest
@@ -252,7 +253,7 @@ describe('ReleasePipeline', () => {
         filter: vi
           .fn()
           .mockImplementation((docs: readonly DocumentMetadata[]) =>
-            docs.filter((doc) => manifest.isPublic(doc.sourcePath))
+            docs.filter((doc) => manifest.resolve(doc).shouldRelease)
           )
       },
       {

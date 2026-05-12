@@ -10,6 +10,8 @@ import {
   type ReleaseTag
 } from './domain/types.js';
 import type { NamingStrategyRegistry } from './packaging/naming-strategy.js';
+import type { ChannelManifest } from './domain/channel-manifest.js';
+import { Channel } from './domain/channel.js';
 import { logger } from './shared/logger.js';
 import { mapWithConcurrency } from './shared/concurrency.js';
 
@@ -32,6 +34,7 @@ export interface PipelineDependencies {
   packager: IArtifactPackager;
   publisher: IReleasePublisher;
   namingRegistry: NamingStrategyRegistry;
+  manifest?: ChannelManifest;
 }
 
 export class ReleasePipeline {
@@ -96,31 +99,41 @@ export class ReleasePipeline {
       }
     );
 
-    // Collect detection results into released/skipped/failed
+    // Collect detection results into changed/skipped/failed
     const changed: Array<{
       doc: DocumentMetadata;
       tag: ReleaseTag;
       canonicalBase: string;
       detection: ChangeDetectorResult;
+      channels: Channel[];
     }> = [];
 
-    for (const r of detectionResults) {
+    for (let i = 0; i < detectionResults.length; i++) {
+      const r = detectionResults[i];
       if (r.status === 'rejected') {
-        const doc = filteredDocs[detectionResults.indexOf(r)];
         result.failed.push({
-          document: doc,
+          document: filteredDocs[i],
           error:
             r.reason instanceof Error ? r.reason : new Error(String(r.reason))
         });
-        logger.error(`FAILED: ${doc.id}: ${r.reason}`);
+        logger.error(`FAILED: ${filteredDocs[i].id}: ${r.reason}`);
         continue;
       }
       const { doc, detection } = r.value;
+
+      // Resolve per-document policy for stage constraints and channels
+      const channels = this.resolveChannels(doc);
+
       if (!detection.changed) {
         result.skipped.push(doc);
         logger.info(`SKIPPED: ${doc.id} (unchanged)`);
+      } else if (!this.passesStageConstraint(doc)) {
+        result.skipped.push(doc);
+        logger.info(
+          `SKIPPED: ${doc.id} (stage ${doc.version.stage.toString()} not in manifest allow list)`
+        );
       } else {
-        changed.push(r.value);
+        changed.push({ ...r.value, channels });
       }
     }
 
@@ -129,7 +142,7 @@ export class ReleasePipeline {
       const publishResults = await mapWithConcurrency(
         changed,
         concurrency,
-        async ({ doc, tag, canonicalBase, detection }) => {
+        async ({ doc, tag, canonicalBase, detection, channels }) => {
           const artifact = await this.deps.packager.package(doc, canonicalBase);
           await this.deps.publisher.publish(
             tag,
@@ -137,14 +150,15 @@ export class ReleasePipeline {
             detection.currentHash,
             doc,
             tag.isPreRelease,
-            artifact
+            artifact,
+            channels
           );
           return doc;
         }
       );
 
-      for (const r of publishResults) {
-        const idx = publishResults.indexOf(r);
+      for (let i = 0; i < publishResults.length; i++) {
+        const r = publishResults[i];
         if (r.status === 'fulfilled') {
           result.released.push(r.value);
           logger.info(
@@ -152,11 +166,11 @@ export class ReleasePipeline {
           );
         } else {
           result.failed.push({
-            document: changed[idx].doc,
+            document: changed[i].doc,
             error:
               r.reason instanceof Error ? r.reason : new Error(String(r.reason))
           });
-          logger.error(`FAILED: ${changed[idx].doc.id}: ${r.reason}`);
+          logger.error(`FAILED: ${changed[i].doc.id}: ${r.reason}`);
         }
       }
     }
@@ -169,5 +183,20 @@ export class ReleasePipeline {
     );
 
     return result;
+  }
+
+  private resolveChannels(doc: DocumentMetadata): Channel[] {
+    if (this.deps.manifest) {
+      const policy = this.deps.manifest.resolve(doc);
+      if (policy.channels.length > 0) return [...policy.channels];
+    }
+    return [Channel.public('default')];
+  }
+
+  private passesStageConstraint(doc: DocumentMetadata): boolean {
+    if (!this.deps.manifest) return true;
+    const policy = this.deps.manifest.resolve(doc);
+    if (!policy.stageAllowList) return true;
+    return policy.stageAllowList.has(doc.version.stage.toString());
   }
 }
