@@ -158,11 +158,25 @@ export class ChannelManifest {
     sourcePath: string;
     id: { toString(): string };
   }): ManifestEntry | undefined {
-    return this.entries.find((e) => {
-      if (e.source && e.source === doc.sourcePath) return true;
-      if (e.pattern && minimatch(doc.id.toString(), e.pattern)) return true;
-      return false;
-    });
+    let bestEntry: ManifestEntry | undefined;
+    let bestScore = 0;
+
+    for (const e of this.entries) {
+      let score = 0;
+
+      if (e.source && e.source === doc.sourcePath) {
+        score = 100;
+      } else if (e.pattern && minimatch(doc.id.toString(), e.pattern)) {
+        score = 50 + e.pattern.length;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestEntry = e;
+      }
+    }
+
+    return bestEntry;
   }
 }
 

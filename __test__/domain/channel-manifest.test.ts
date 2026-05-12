@@ -228,6 +228,60 @@ describe('ChannelManifest', () => {
     });
   });
 
+  describe('findEntry — match scoring', () => {
+    it('prefers exact source match over pattern match', () => {
+      const manifest = ChannelManifest.parse({
+        documents: [
+          {
+            pattern: 'cc-*',
+            channels: ['public/archive'],
+            visibility: 'public'
+          },
+          {
+            source: 'sources/cc-51015.adoc',
+            channels: ['public/standards'],
+            visibility: 'public'
+          }
+        ]
+      });
+      const policy = manifest.resolve(
+        mockDoc('sources/cc-51015.adoc', 'cc-51015')
+      );
+      expect(policy.channels[0].toString()).toBe('public/standards');
+    });
+
+    it('prefers longer pattern over shorter pattern', () => {
+      const manifest = ChannelManifest.parse({
+        documents: [
+          { pattern: 'cc-*', channels: ['public/archive'] },
+          {
+            pattern: 'cc-5101*',
+            channels: ['public/standards']
+          }
+        ]
+      });
+      const policy = manifest.resolve(
+        mockDoc('sources/cc-51015.adoc', 'cc-51015')
+      );
+      expect(policy.channels[0].toString()).toBe('public/standards');
+    });
+
+    it('uses pattern match when no source matches', () => {
+      const manifest = ChannelManifest.parse({
+        documents: [
+          {
+            pattern: 'cc-0*',
+            channels: ['public/archive']
+          }
+        ]
+      });
+      const policy = manifest.resolve(
+        mockDoc('sources/cc-0100.adoc', 'cc-0100')
+      );
+      expect(policy.channels[0].toString()).toBe('public/archive');
+    });
+  });
+
   describe('listAll', () => {
     it('returns all entries', () => {
       const manifest = ChannelManifest.parse({
