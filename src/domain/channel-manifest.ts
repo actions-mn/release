@@ -150,23 +150,6 @@ export class ChannelManifest {
     return DocumentReleasePolicy.fromEntry(entry);
   }
 
-  isPublic(sourcePath: string): boolean {
-    if (!this.isExplicitlyLoaded) return true;
-    const entry = this.entries.find((e) => e.source === sourcePath);
-    if (!entry) return this.defaultVisibility === 'public';
-    return entry.visibility === 'public' || entry.visibility === 'members';
-  }
-
-  resolveStageAllowList(): ReadonlySet<string> | undefined {
-    const allStages = new Set<string>();
-    for (const entry of this.entries) {
-      if (entry.stages) {
-        for (const s of entry.stages) allStages.add(s);
-      }
-    }
-    return allStages.size > 0 ? allStages : undefined;
-  }
-
   listAll(): ManifestEntry[] {
     return [...this.entries];
   }

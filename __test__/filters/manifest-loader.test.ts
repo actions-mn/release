@@ -3,6 +3,10 @@ import { loadManifest } from '../../src/filters/manifest-loader.js';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 
+function mockDoc(sourcePath: string, id: string) {
+  return { sourcePath, id: { toString: () => id } };
+}
+
 describe('manifest-loader', () => {
   let tmpDir: string;
 
@@ -25,20 +29,30 @@ describe('manifest-loader', () => {
     );
 
     const manifest = await loadManifest(tmpDir, 'manifest.yml');
-    expect(manifest.isPublic('sources/cc-51015.adoc')).toBe(true);
-    expect(manifest.isPublic('sources/cc-51026.adoc')).toBe(false);
+    expect(
+      manifest.resolve(mockDoc('sources/cc-51015.adoc', 'cc-51015'))
+        .shouldRelease
+    ).toBe(true);
+    expect(
+      manifest.resolve(mockDoc('sources/cc-51026.adoc', 'cc-51026'))
+        .shouldRelease
+    ).toBe(false);
   });
 
   it('returns allPublic when file does not exist', async () => {
     const manifest = await loadManifest(tmpDir, 'nonexistent.yml');
-    expect(manifest.isPublic('any/path.adoc')).toBe(true);
+    expect(
+      manifest.resolve(mockDoc('any/path.adoc', 'cc-1')).shouldRelease
+    ).toBe(true);
   });
 
-  it('returns allPublic for empty manifest', async () => {
+  it('returns allPrivate for empty manifest', async () => {
     await writeFile(join(tmpDir, 'empty.yml'), '{}');
 
     const manifest = await loadManifest(tmpDir, 'empty.yml');
-    expect(manifest.isPublic('any/path.adoc')).toBe(false);
+    expect(
+      manifest.resolve(mockDoc('any/path.adoc', 'cc-1')).shouldRelease
+    ).toBe(false);
     expect(manifest.listAll()).toEqual([]);
   });
 
@@ -58,6 +72,8 @@ describe('manifest-loader', () => {
     await writeFile(join(tmpDir, 'nodoc.yml'), `other: value`);
 
     const manifest = await loadManifest(tmpDir, 'nodoc.yml');
-    expect(manifest.isPublic('any/path.adoc')).toBe(false);
+    expect(
+      manifest.resolve(mockDoc('any/path.adoc', 'cc-1')).shouldRelease
+    ).toBe(false);
   });
 });
