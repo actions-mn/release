@@ -5,10 +5,13 @@ import {
   type IArtifactPackager,
   type IReleasePublisher,
   type IDocumentExtractor,
-  type IDocumentFilter
+  type IDocumentFilter,
+  type ChangeDetectorResult,
+  type ReleaseTag
 } from './domain/types.js';
 import type { NamingStrategyRegistry } from './packaging/naming-strategy.js';
 import { logger } from './shared/logger.js';
+import { mapWithConcurrency } from './shared/concurrency.js';
 
 export interface PipelineResult {
   readonly released: DocumentMetadata[];
@@ -70,23 +73,91 @@ export class ReleasePipeline {
       return result;
     }
 
-    // 3. Process documents sequentially to avoid GitHub API rate limits
-    for (const doc of filteredDocs) {
-      try {
-        const outcome = await this.processDocument(doc);
-        if (outcome.released) {
-          result.released.push(doc);
-          logger.info(`RELEASED: ${doc.id} (${doc.version.tagComponent})`);
-        } else {
-          result.skipped.push(doc);
-          logger.info(`SKIPPED: ${doc.id} (unchanged)`);
-        }
-      } catch (error) {
+    // 3. Two-phase parallel processing
+    const concurrency = this.config.concurrency ?? 4;
+
+    // Phase 1: Change detection (parallel, read-only)
+    const detectionResults = await mapWithConcurrency(
+      filteredDocs,
+      concurrency,
+      async (doc) => {
+        const strategy = this.deps.namingRegistry.resolve(doc.documentType);
+        const tag = strategy.computeTag(doc.id, doc.version);
+        const canonicalBase = strategy.computeCanonicalBase(
+          doc.id,
+          doc.version
+        );
+        const detection = await this.deps.changeDetector.detect(
+          doc,
+          tag,
+          this.config.force
+        );
+        return { doc, tag, canonicalBase, detection };
+      }
+    );
+
+    // Collect detection results into released/skipped/failed
+    const changed: Array<{
+      doc: DocumentMetadata;
+      tag: ReleaseTag;
+      canonicalBase: string;
+      detection: ChangeDetectorResult;
+    }> = [];
+
+    for (const r of detectionResults) {
+      if (r.status === 'rejected') {
+        const doc = filteredDocs[detectionResults.indexOf(r)];
         result.failed.push({
           document: doc,
-          error: error instanceof Error ? error : new Error(String(error))
+          error:
+            r.reason instanceof Error ? r.reason : new Error(String(r.reason))
         });
-        logger.error(`FAILED: ${doc.id}: ${error}`);
+        logger.error(`FAILED: ${doc.id}: ${r.reason}`);
+        continue;
+      }
+      const { doc, detection } = r.value;
+      if (!detection.changed) {
+        result.skipped.push(doc);
+        logger.info(`SKIPPED: ${doc.id} (unchanged)`);
+      } else {
+        changed.push(r.value);
+      }
+    }
+
+    // Phase 2: Package + publish changed documents (parallel)
+    if (changed.length > 0) {
+      const publishResults = await mapWithConcurrency(
+        changed,
+        concurrency,
+        async ({ doc, tag, canonicalBase, detection }) => {
+          const artifact = await this.deps.packager.package(doc, canonicalBase);
+          await this.deps.publisher.publish(
+            tag,
+            artifact.zipPath,
+            detection.currentHash,
+            doc,
+            tag.isPreRelease,
+            artifact
+          );
+          return doc;
+        }
+      );
+
+      for (const r of publishResults) {
+        const idx = publishResults.indexOf(r);
+        if (r.status === 'fulfilled') {
+          result.released.push(r.value);
+          logger.info(
+            `RELEASED: ${r.value.id} (${r.value.version.tagComponent})`
+          );
+        } else {
+          result.failed.push({
+            document: changed[idx].doc,
+            error:
+              r.reason instanceof Error ? r.reason : new Error(String(r.reason))
+          });
+          logger.error(`FAILED: ${changed[idx].doc.id}: ${r.reason}`);
+        }
       }
     }
 
@@ -98,37 +169,5 @@ export class ReleasePipeline {
     );
 
     return result;
-  }
-
-  private async processDocument(
-    metadata: DocumentMetadata
-  ): Promise<{ released: boolean }> {
-    const strategy = this.deps.namingRegistry.resolve(metadata.documentType);
-    const tag = strategy.computeTag(metadata.id, metadata.version);
-
-    const detection = await this.deps.changeDetector.detect(
-      metadata,
-      tag,
-      this.config.force
-    );
-
-    if (!detection.changed) {
-      return { released: false };
-    }
-
-    const artifact = await this.deps.packager.package(
-      metadata,
-      metadata.version
-    );
-
-    await this.deps.publisher.publish(
-      tag,
-      artifact.zipPath,
-      detection.currentHash,
-      metadata,
-      tag.isPreRelease
-    );
-
-    return { released: true };
   }
 }

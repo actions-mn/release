@@ -19,11 +19,14 @@ const XML_PARSER = new XMLParser({
 });
 
 export class RxlExtractor implements IDocumentExtractor {
+  constructor(private readonly failureThreshold: number = 0.5) {}
+
   async discover(outputDir: string): Promise<DocumentMetadata[]> {
     const { glob } = await import('glob');
     const rxlFiles = await glob('**/*.rxl', { cwd: outputDir, absolute: true });
 
     const results: DocumentMetadata[] = [];
+    const failures: Array<{ file: string; error: string }> = [];
 
     for (const rxl of rxlFiles) {
       try {
@@ -32,7 +35,29 @@ export class RxlExtractor implements IDocumentExtractor {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.warn(`Failed to extract metadata from ${rxl}: ${message}`);
+        failures.push({ file: rxl, error: message });
       }
+    }
+
+    if (
+      rxlFiles.length > 0 &&
+      failures.length / rxlFiles.length > this.failureThreshold
+    ) {
+      throw new Error(
+        `Too many RXL extraction failures: ${failures.length}/${rxlFiles.length} ` +
+          `(${Math.round((failures.length / rxlFiles.length) * 100)}%). ` +
+          `Threshold is ${Math.round(this.failureThreshold * 100)}%. ` +
+          `First errors: ${failures
+            .slice(0, 3)
+            .map((f) => f.error)
+            .join('; ')}`
+      );
+    }
+
+    if (failures.length > 0) {
+      logger.warn(
+        `${failures.length} RXL file(s) failed extraction (proceeding with ${results.length} valid)`
+      );
     }
 
     return results;

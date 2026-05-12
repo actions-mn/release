@@ -26,10 +26,22 @@ inputs:
     description: 'Glob pattern to filter documents for release (e.g. "cc-*")'
     required: false
     default: '*'
+  stages:
+    description: 'Comma-separated stages to release (e.g. "published,final-draft"). Empty = all stages.'
+    required: false
+    default: ''
   default-visibility:
     description: 'Default visibility for documents not listed in release manifest (public or private)'
     required: false
     default: 'public'
+  concurrency:
+    description: 'Max parallel document processing (1 = sequential)'
+    required: false
+    default: '4'
+  extraction-failure-threshold:
+    description: 'Fail if this fraction of RXL files fail extraction (0.0–1.0)'
+    required: false
+    default: '0.5'
   token:
     description: 'GitHub token for creating releases'
     required: false
@@ -40,6 +52,8 @@ outputs:
     description: 'JSON array of released document identifiers'
   skipped-documents:
     description: 'JSON array of skipped document identifiers (unchanged)'
+  failed-documents:
+    description: 'JSON array of failed document identifiers'
   total-documents:
     description: 'Total number of documents processed'
 

@@ -5,12 +5,14 @@ import { ReleasePipeline } from './pipeline.js';
 import { RxlExtractor } from './extractors/rxl-extractor.js';
 import { VisibilityFilter } from './filters/visibility-filter.js';
 import { PatternFilter } from './filters/pattern-filter.js';
+import { StageFilter } from './filters/stage-filter.js';
 import { loadManifest } from './filters/manifest-loader.js';
 import { GitHubReleaseChangeDetector } from './detection/change-detector.js';
 import { ZipPackager } from './packaging/zip-packager.js';
 import { GitHubReleasePublisher } from './publishing/github-release.js';
 import { createDefaultRegistry } from './packaging/naming-strategy.js';
 import type { GitHubReleasesApi } from './domain/types.js';
+import type { IDocumentFilter } from './domain/types.js';
 
 async function run(): Promise<void> {
   try {
@@ -25,14 +27,20 @@ async function run(): Promise<void> {
       config.defaultVisibility
     );
 
+    const filters: IDocumentFilter[] = [
+      new VisibilityFilter(manifest),
+      new PatternFilter(config.includePattern)
+    ];
+
+    if (config.stages.length > 0) {
+      filters.push(new StageFilter(new Set(config.stages)));
+    }
+
     const pipeline = new ReleasePipeline(config, {
-      extractor: new RxlExtractor(),
-      filters: [
-        new VisibilityFilter(manifest),
-        new PatternFilter(config.includePattern)
-      ],
+      extractor: new RxlExtractor(config.extractionFailureThreshold),
+      filters,
       changeDetector: new GitHubReleaseChangeDetector(octokit, config.repo),
-      packager: new ZipPackager(namingRegistry),
+      packager: new ZipPackager(),
       publisher: new GitHubReleasePublisher(octokit, config.repo),
       namingRegistry
     });
@@ -46,6 +54,10 @@ async function run(): Promise<void> {
     setOutput(
       'skipped-documents',
       JSON.stringify(result.skipped.map((d) => d.id.toString()))
+    );
+    setOutput(
+      'failed-documents',
+      JSON.stringify(result.failed.map((f) => f.document.id.toString()))
     );
     setOutput(
       'total-documents',
