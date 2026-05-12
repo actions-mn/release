@@ -3,25 +3,16 @@ import { stat } from 'fs/promises';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import archiver from 'archiver';
-import type { IArtifactPackager } from '../domain/types.js';
-import type { ArtifactResult, DocumentVersion } from '../domain/types.js';
+import type { IArtifactPackager, ArtifactResult } from '../domain/types.js';
 import type { DocumentMetadata } from '../domain/document-metadata.js';
-import type { NamingStrategyRegistry } from './naming-strategy.js';
 
 export class ZipPackager implements IArtifactPackager {
-  constructor(private readonly namingRegistry: NamingStrategyRegistry) {}
-
   async package(
     metadata: DocumentMetadata,
-    _version: DocumentVersion
+    canonicalBase: string
   ): Promise<ArtifactResult> {
-    const strategy = this.namingRegistry.resolve(metadata.documentType);
-    const assetName = strategy.computeAssetName(metadata.id, metadata.version);
-    const canonicalBase = strategy.computeCanonicalBase(
-      metadata.id,
-      metadata.version
-    );
-    const zipPath = join(tmpdir(), `mn-release-${assetName}`);
+    const assetName = `${canonicalBase}.zip`;
+    const zipPath = join(tmpdir(), `mn-release-${Date.now()}-${assetName}`);
 
     await this.createZipWithCanonicalNames(
       metadata.outputDir,
@@ -31,7 +22,7 @@ export class ZipPackager implements IArtifactPackager {
     );
 
     const stats = await stat(zipPath);
-    return { zipPath, zipSize: stats.size };
+    return { zipPath, zipSize: stats.size, assetName };
   }
 
   private async createZipWithCanonicalNames(
@@ -53,7 +44,6 @@ export class ZipPackager implements IArtifactPackager {
         if (!ext || !entry.stats || entry.stats.isDirectory()) {
           return false;
         }
-        // Only include files whose base name exactly matches the document
         const baseName = entry.name.replace(/\.[^.]+$/, '');
         if (baseName !== docIdPrefix) {
           return false;

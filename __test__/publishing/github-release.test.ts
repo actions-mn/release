@@ -227,7 +227,8 @@ describe('GitHubReleasePublisher', () => {
 
     expect(capturedBody).toContain('content-hash:deadbeef');
     expect(capturedBody).toContain('cc-51015');
-    expect(capturedBody).toContain('ed1');
+    expect(capturedBody).toContain('published');
+    expect(capturedBody).toContain('mn-release-metadata');
   });
 
   it('sets prerelease flag on release body', async () => {

@@ -1,4 +1,5 @@
 import type { DocumentMetadata } from './document-metadata.js';
+import type { Channel } from './channel.js';
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
 
@@ -117,10 +118,14 @@ export class DocumentStage {
 }
 
 export class DocumentVersion {
+  private readonly _stage: DocumentStage;
+
   private constructor(
     private readonly edition: string,
-    private readonly stage: DocumentStage
-  ) {}
+    stage: DocumentStage
+  ) {
+    this._stage = stage;
+  }
 
   static from(
     edition: string | undefined,
@@ -132,12 +137,12 @@ export class DocumentVersion {
 
   get tagComponent(): string {
     const base = `ed${this.edition}`;
-    const suffix = this.stage.tagSuffix;
+    const suffix = this._stage.tagSuffix;
     return suffix ? `${base}-${suffix}` : base;
   }
 
   toFileName(docId: DocumentId): string {
-    const suffix = this.stage.tagSuffix;
+    const suffix = this._stage.tagSuffix;
     return suffix
       ? `${docId.fileName}-ed${this.edition}-${suffix}.zip`
       : `${docId.fileName}-ed${this.edition}.zip`;
@@ -147,8 +152,12 @@ export class DocumentVersion {
     return this.edition;
   }
 
+  get stage(): DocumentStage {
+    return this._stage;
+  }
+
   get isPreRelease(): boolean {
-    return this.stage.isDraft;
+    return this._stage.isDraft;
   }
 }
 
@@ -227,6 +236,7 @@ export interface ChangeDetectorResult {
 export interface ArtifactResult {
   readonly zipPath: string;
   readonly zipSize: number;
+  readonly assetName: string;
 }
 
 export interface PublishResult {
@@ -257,7 +267,7 @@ export interface IChangeDetector {
 export interface IArtifactPackager {
   package(
     metadata: DocumentMetadata,
-    version: DocumentVersion
+    canonicalBase: string
   ): Promise<ArtifactResult>;
 }
 
@@ -267,7 +277,9 @@ export interface IReleasePublisher {
     assetPath: string,
     hash: ContentHash,
     metadata: DocumentMetadata,
-    preRelease: boolean
+    preRelease: boolean,
+    artifact?: ArtifactResult,
+    channels?: Channel[]
   ): Promise<PublishResult>;
 }
 
