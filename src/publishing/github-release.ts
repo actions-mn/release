@@ -67,7 +67,8 @@ export class GitHubReleasePublisher implements IReleasePublisher {
       body,
       preRelease,
       metadata,
-      artifact
+      artifact,
+      channels
     );
   }
 
@@ -92,12 +93,17 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     body: string,
     preRelease: boolean,
     metadata: DocumentMetadata,
-    artifact?: ArtifactResult
+    artifact?: ArtifactResult,
+    channels: Channel[] = []
   ): Promise<PublishResult> {
+    const channelPrefix =
+      channels.length > 0
+        ? `[${channels.map((c) => c.toString()).join(', ')}] `
+        : '';
     const { data } = await this.octokit.rest.repos.createRelease({
       ...this.repo,
       tag_name: tag.toString(),
-      name: `${metadata.id} ${metadata.version.tagComponent}`,
+      name: `${channelPrefix}${metadata.id} ${metadata.version.tagComponent}`,
       body,
       prerelease: preRelease,
       draft: false
