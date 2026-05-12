@@ -7,9 +7,12 @@ import {
   type ReleaseTag,
   type ContentHash,
   type GitHubReleasesApi,
-  type GitHubReleaseData
+  type GitHubReleaseData,
+  type ArtifactResult
 } from '../domain/types.js';
 import type { DocumentMetadata } from '../domain/document-metadata.js';
+import { ReleaseMetadata } from '../domain/release-metadata.js';
+import { Channel } from '../domain/channel.js';
 import { logger } from '../shared/logger.js';
 
 export class GitHubReleasePublisher implements IReleasePublisher {
@@ -26,10 +29,12 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     assetPath: string,
     hash: ContentHash,
     metadata: DocumentMetadata,
-    preRelease: boolean
+    preRelease: boolean,
+    artifact?: ArtifactResult,
+    channels: Channel[] = [Channel.public('default')]
   ): Promise<PublishResult> {
     const tagName = tag.toString();
-    const body = this.formatBody(hash, metadata);
+    const body = this.formatBody(hash, metadata, channels);
 
     const existing = await this.findExistingRelease(tagName);
 
@@ -46,10 +51,24 @@ export class GitHubReleasePublisher implements IReleasePublisher {
         };
       }
 
-      return this.updateRelease(existing, tag, assetPath, body, preRelease);
+      return this.updateRelease(
+        existing,
+        tag,
+        assetPath,
+        body,
+        preRelease,
+        artifact
+      );
     }
 
-    return this.createRelease(tag, assetPath, body, preRelease, metadata);
+    return this.createRelease(
+      tag,
+      assetPath,
+      body,
+      preRelease,
+      metadata,
+      artifact
+    );
   }
 
   private async findExistingRelease(
@@ -72,7 +91,8 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     assetPath: string,
     body: string,
     preRelease: boolean,
-    metadata: DocumentMetadata
+    metadata: DocumentMetadata,
+    artifact?: ArtifactResult
   ): Promise<PublishResult> {
     const { data } = await this.octokit.rest.repos.createRelease({
       ...this.repo,
@@ -83,7 +103,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
       draft: false
     });
 
-    await this.uploadAsset(data.id, assetPath);
+    await this.uploadAsset(data.id, assetPath, artifact?.assetName);
 
     return {
       tag,
@@ -97,7 +117,8 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     tag: ReleaseTag,
     assetPath: string,
     body: string,
-    preRelease: boolean
+    preRelease: boolean,
+    artifact?: ArtifactResult
   ): Promise<PublishResult> {
     await this.octokit.rest.repos.updateRelease({
       ...this.repo,
@@ -113,7 +134,7 @@ export class GitHubReleasePublisher implements IReleasePublisher {
       });
     }
 
-    await this.uploadAsset(existing.id, assetPath);
+    await this.uploadAsset(existing.id, assetPath, artifact?.assetName);
 
     return {
       tag,
@@ -124,16 +145,17 @@ export class GitHubReleasePublisher implements IReleasePublisher {
 
   private async uploadAsset(
     releaseId: number,
-    assetPath: string
+    assetPath: string,
+    assetName?: string
   ): Promise<void> {
     const fileStat = await stat(assetPath);
-    const fileName = basename(assetPath).replace(/^mn-release-/, '');
+    const name = assetName ?? basename(assetPath).replace(/^mn-release-/, '');
     const fileStream = createReadStream(assetPath);
 
     await this.octokit.rest.repos.uploadReleaseAsset({
       ...this.repo,
       release_id: releaseId,
-      name: fileName,
+      name,
       data: fileStream as unknown as string,
       headers: {
         'content-length': fileStat.size,
@@ -142,9 +164,24 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     });
   }
 
-  private formatBody(hash: ContentHash, metadata: DocumentMetadata): string {
-    const lines = [
+  private formatBody(
+    hash: ContentHash,
+    metadata: DocumentMetadata,
+    channels: Channel[]
+  ): string {
+    const releaseMeta = ReleaseMetadata.fromDocument(metadata, channels);
+
+    const channelStr =
+      channels.length > 0
+        ? channels.map((c) => c.toString()).join(', ')
+        : 'N/A';
+
+    return [
       `content-hash:${hash.toString()}`,
+      '',
+      '<!-- mn-release-metadata',
+      releaseMeta.toString(),
+      '-->',
       '',
       `## ${metadata.title || metadata.id.toString()}`,
       '',
@@ -152,11 +189,11 @@ export class GitHubReleasePublisher implements IReleasePublisher {
       '|---|---|',
       `| Document | ${metadata.id.toString()} |`,
       `| Edition | ${metadata.version.editionNumber} |`,
-      `| Status | ${metadata.version.tagComponent} |`,
+      `| Status | ${metadata.version.stage.toString()} |`,
       `| Doctype | ${metadata.doctype} |`,
+      `| Channels | ${channelStr} |`,
       `| Revdate | ${metadata.revdate ?? 'N/A'} |`,
       `| Formats | ${metadata.formats.join(', ')} |`
-    ];
-    return lines.join('\n');
+    ].join('\n');
   }
 }

@@ -48,6 +48,9 @@ function makeConfig(overrides: Partial<ReleaseConfig> = {}): ReleaseConfig {
     includePattern: '*',
     token: 'fake-token',
     repo: { owner: 'test', repo: 'repo' },
+    concurrency: 4,
+    stages: [],
+    extractionFailureThreshold: 0.5,
     ...overrides
   };
 }
@@ -91,7 +94,8 @@ function createMockDeps(
   const packager = {
     package: vi.fn().mockResolvedValue({
       zipPath: '/tmp/test.zip',
-      zipSize: 1024
+      zipSize: 1024,
+      assetName: 'test-ed1.zip'
     } as ArtifactResult)
   };
 
@@ -200,7 +204,11 @@ describe('ReleasePipeline', () => {
       .mockImplementationOnce(() => {
         throw new Error('Packaging failed');
       })
-      .mockResolvedValue({ zipPath: '/tmp/test.zip', zipSize: 1024 });
+      .mockResolvedValue({
+        zipPath: '/tmp/test.zip',
+        zipSize: 1024,
+        assetName: 'test.zip'
+      });
 
     const docs = [makeDoc('CC 51015'), makeDoc('CC 51024')];
 

@@ -6,7 +6,6 @@ import {
   DocumentStage
 } from '../../src/domain/types.js';
 import { DocumentType } from '../../src/domain/document-metadata.js';
-import { createDefaultRegistry } from '../../src/packaging/naming-strategy.js';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 import type { DocumentMetadata } from '../../src/domain/document-metadata.js';
@@ -45,7 +44,7 @@ describe('ZipPackager', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    packager = new ZipPackager(createDefaultRegistry());
+    packager = new ZipPackager();
     tmpDir = join(__dirname, 'tmp-zip-test');
     await mkdir(tmpDir, { recursive: true });
   });
@@ -61,10 +60,11 @@ describe('ZipPackager', () => {
     await writeFile(join(outputDir, 'cc-51015.pdf'), 'pdf');
 
     const doc = makeDoc({ outputDir });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed1');
 
     expect(result.zipPath).toContain('mn-release-');
     expect(result.zipSize).toBeGreaterThan(0);
+    expect(result.assetName).toBe('cc-51015-ed1.zip');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toContain('cc-51015-ed1.html');
@@ -83,7 +83,7 @@ describe('ZipPackager', () => {
         DocumentStage.fromStatus('working-draft')
       )
     });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed2-wd');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toContain('cc-51015-ed2-wd.html');
@@ -97,7 +97,7 @@ describe('ZipPackager', () => {
     await writeFile(join(subDir, 'cc-51015.pdf'), 'pdf');
 
     const doc = makeDoc({ outputDir });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed1');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries.length).toBeGreaterThan(0);
@@ -110,7 +110,7 @@ describe('ZipPackager', () => {
     await writeFile(join(outputDir, 'cc-51015.html'), '<html/>');
 
     const doc = makeDoc({ outputDir });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed1');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toContain('cc-51015-ed1.html');
@@ -120,11 +120,9 @@ describe('ZipPackager', () => {
   it('excludes collection-level files that do not match document ID', async () => {
     const outputDir = join(tmpDir, 'output');
     await mkdir(outputDir, { recursive: true });
-    // Document-specific files
     await writeFile(join(outputDir, 'cc-51015.html'), '<html>doc</html>');
     await writeFile(join(outputDir, 'cc-51015.pdf'), 'pdf');
     await writeFile(join(outputDir, 'cc-51015.rxl'), '<bibdata/>');
-    // Collection-level files (different base name)
     await writeFile(
       join(outputDir, 'documents.html'),
       '<html>collection</html>'
@@ -133,7 +131,7 @@ describe('ZipPackager', () => {
     await writeFile(join(outputDir, 'index.html'), '<html>index</html>');
 
     const doc = makeDoc({ outputDir });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed1');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toEqual([
@@ -152,7 +150,7 @@ describe('ZipPackager', () => {
     await writeFile(join(outputDir, 'other.txt'), 'junk');
 
     const doc = makeDoc({ outputDir });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed1');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toEqual(['cc-51015-ed1.html']);
@@ -168,7 +166,7 @@ describe('ZipPackager', () => {
     await writeFile(join(outputDir, 'cc-51015.pdf'), 'pdf');
 
     const doc = makeDoc({ outputDir });
-    const result = await packager.package(doc, doc.version);
+    const result = await packager.package(doc, 'cc-51015-ed1');
 
     const entries = await readZipEntries(result.zipPath);
     expect(entries).toEqual([
