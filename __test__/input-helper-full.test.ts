@@ -31,6 +31,9 @@ describe('getInputs', () => {
     expect(config.force).toBe(false);
     expect(config.includePattern).toBe('*');
     expect(config.token).toBe('ghp_test123');
+    expect(config.concurrency).toBe(4);
+    expect(config.stages).toEqual([]);
+    expect(config.extractionFailureThreshold).toBe(0.5);
     expect(config.repo).toEqual({ owner: 'owner', repo: 'repo' });
     expect(config.workspacePath).toBe('/github/workspace');
   });
@@ -72,6 +75,46 @@ describe('getInputs', () => {
     setInput('token', 'test');
 
     await expect(getInputs()).rejects.toThrow('Invalid boolean value');
+  });
+
+  it('reads custom concurrency', async () => {
+    setInput('concurrency', '8');
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.concurrency).toBe(8);
+  });
+
+  it('throws for invalid concurrency', async () => {
+    setInput('concurrency', '0');
+    setInput('token', 'test');
+
+    await expect(getInputs()).rejects.toThrow('Invalid concurrency');
+  });
+
+  it('reads stages input', async () => {
+    setInput('stages', 'published, final-draft');
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.stages).toEqual(['published', 'final-draft']);
+  });
+
+  it('reads extraction-failure-threshold input', async () => {
+    setInput('extraction-failure-threshold', '0.8');
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.extractionFailureThreshold).toBe(0.8);
+  });
+
+  it('throws for invalid extraction-failure-threshold', async () => {
+    setInput('extraction-failure-threshold', '2.0');
+    setInput('token', 'test');
+
+    await expect(getInputs()).rejects.toThrow(
+      'Invalid extraction-failure-threshold'
+    );
   });
 
   it('throws for invalid GITHUB_REPOSITORY format', async () => {

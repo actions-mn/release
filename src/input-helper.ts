@@ -10,6 +10,9 @@ export interface ReleaseConfig {
   defaultVisibility: 'public' | 'private';
   force: boolean;
   includePattern: string;
+  concurrency: number;
+  stages: string[];
+  extractionFailureThreshold: number;
   token: string;
 
   repo: { owner: string; repo: string };
@@ -25,6 +28,9 @@ export async function getInputs(): Promise<ReleaseConfig> {
     defaultVisibility: getDefaultVisibility(),
     force: getBooleanInput('force', 'false'),
     includePattern: getIncludePattern(),
+    concurrency: getConcurrency(),
+    stages: getStages(),
+    extractionFailureThreshold: getExtractionFailureThreshold(),
     token: getToken(),
 
     repo: getRepo()
@@ -49,6 +55,35 @@ function getReleaseConfigFile(): string {
 
 function getIncludePattern(): string {
   return getInput('include-pattern') || '*';
+}
+
+function getConcurrency(): number {
+  const raw = getInput('concurrency') || '4';
+  const value = parseInt(raw, 10);
+  if (isNaN(value) || value < 1) {
+    throw new Error(`Invalid concurrency: ${raw}. Must be a positive integer.`);
+  }
+  return value;
+}
+
+function getStages(): string[] {
+  const raw = getInput('stages')?.trim();
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function getExtractionFailureThreshold(): number {
+  const raw = getInput('extraction-failure-threshold') || '0.5';
+  const value = parseFloat(raw);
+  if (isNaN(value) || value < 0 || value > 1) {
+    throw new Error(
+      `Invalid extraction-failure-threshold: ${raw}. Must be between 0.0 and 1.0.`
+    );
+  }
+  return value;
 }
 
 function getDefaultVisibility(): 'public' | 'private' {
