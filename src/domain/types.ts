@@ -1,14 +1,6 @@
 import type { DocumentMetadata } from './document-metadata.js';
 import type { Channel } from './channel.js';
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
-
-export enum Visibility {
-  Public = 'public',
-  Private = 'private',
-  Members = 'members'
-}
-
 // ─── Value Objects ──────────────────────────────────────────────────────────
 
 export class DocumentId {

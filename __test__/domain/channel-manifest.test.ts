@@ -19,9 +19,11 @@ describe('ChannelManifest', () => {
       expect(policy.channels[0].toString()).toBe('public/default');
     });
 
-    it('isPublic returns true for any path', () => {
+    it('resolve returns shouldRelease=true for any doc', () => {
       const manifest = ChannelManifest.allPublic();
-      expect(manifest.isPublic('anything')).toBe(true);
+      expect(manifest.resolve(mockDoc('anything', 'cc-1')).shouldRelease).toBe(
+        true
+      );
     });
   });
 
@@ -194,26 +196,35 @@ describe('ChannelManifest', () => {
     });
   });
 
-  describe('isPublic', () => {
-    it('returns true for public entries', () => {
+  describe('resolve — visibility', () => {
+    it('returns shouldRelease=true for public entries', () => {
       const manifest = ChannelManifest.parse({
         documents: [{ source: 'sources/cc-51015.adoc' }]
       });
-      expect(manifest.isPublic('sources/cc-51015.adoc')).toBe(true);
+      expect(
+        manifest.resolve(mockDoc('sources/cc-51015.adoc', 'cc-51015'))
+          .shouldRelease
+      ).toBe(true);
     });
 
-    it('returns false for private entries', () => {
+    it('returns shouldRelease=false for private entries', () => {
       const manifest = ChannelManifest.parse({
         documents: [{ source: 'sources/cc-51015.adoc', visibility: 'private' }]
       });
-      expect(manifest.isPublic('sources/cc-51015.adoc')).toBe(false);
+      expect(
+        manifest.resolve(mockDoc('sources/cc-51015.adoc', 'cc-51015'))
+          .shouldRelease
+      ).toBe(false);
     });
 
-    it('returns true for members entries', () => {
+    it('returns shouldRelease=true for members entries', () => {
       const manifest = ChannelManifest.parse({
         documents: [{ source: 'sources/cc-51015.adoc', visibility: 'members' }]
       });
-      expect(manifest.isPublic('sources/cc-51015.adoc')).toBe(true);
+      expect(
+        manifest.resolve(mockDoc('sources/cc-51015.adoc', 'cc-51015'))
+          .shouldRelease
+      ).toBe(true);
     });
   });
 
