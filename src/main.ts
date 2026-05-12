@@ -3,7 +3,7 @@ import { getOctokit } from '@actions/github';
 import { getInputs } from './input-helper.js';
 import { ReleasePipeline } from './pipeline.js';
 import { RxlExtractor } from './extractors/rxl-extractor.js';
-import { VisibilityFilter } from './filters/visibility-filter.js';
+import { ChannelManifestFilter } from './filters/channel-manifest-filter.js';
 import { PatternFilter } from './filters/pattern-filter.js';
 import { StageFilter } from './filters/stage-filter.js';
 import { loadManifest } from './filters/manifest-loader.js';
@@ -28,7 +28,7 @@ async function run(): Promise<void> {
     );
 
     const filters: IDocumentFilter[] = [
-      new VisibilityFilter(manifest),
+      new ChannelManifestFilter(manifest),
       new PatternFilter(config.includePattern)
     ];
 
@@ -42,7 +42,8 @@ async function run(): Promise<void> {
       changeDetector: new GitHubReleaseChangeDetector(octokit, config.repo),
       packager: new ZipPackager(),
       publisher: new GitHubReleasePublisher(octokit, config.repo),
-      namingRegistry
+      namingRegistry,
+      manifest
     });
 
     const result = await pipeline.execute();
