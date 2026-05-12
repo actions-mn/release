@@ -215,7 +215,13 @@ export class RxlExtractor implements IDocumentExtractor {
   private resolveSourcePath(outputDir: string): string {
     const normalized = outputDir.replace(/\\/g, '/');
     const documentsIdx = normalized.indexOf('/documents/');
-    if (documentsIdx === -1) return '';
+    if (documentsIdx === -1) {
+      logger.warn(
+        `Could not resolve source path from output dir "${outputDir}" — ` +
+          `expected a "/documents/" segment in the path`
+      );
+      return '';
+    }
 
     const relative = normalized.slice(documentsIdx + '/documents/'.length);
     const parts = relative.split('/');

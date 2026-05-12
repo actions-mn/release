@@ -2,6 +2,7 @@ import type { DocumentMetadata } from './document-metadata.js';
 import type { Channel } from './channel.js';
 
 export interface ReleaseMetadataJson {
+  readonly version: 1;
   readonly id: string;
   readonly title: string;
   readonly edition: string;
@@ -22,6 +23,7 @@ export class ReleaseMetadata {
     channels: readonly Channel[]
   ): ReleaseMetadata {
     return new ReleaseMetadata({
+      version: 1 as const,
       id: metadata.id.toString(),
       title: metadata.title,
       edition: metadata.version.editionNumber,
