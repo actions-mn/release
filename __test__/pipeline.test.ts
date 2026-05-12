@@ -14,6 +14,7 @@ import type { DocumentMetadata } from '../src/domain/document-metadata.js';
 import type { ReleaseConfig } from '../src/input-helper.js';
 import { ReleasePipeline, type PipelineDependencies } from '../src/pipeline.js';
 import { ChannelManifest } from '../src/domain/channel-manifest.js';
+import { Channel } from '../src/domain/channel.js';
 import { createDefaultRegistry } from '../src/packaging/naming-strategy.js';
 
 function makeDoc(
@@ -50,6 +51,7 @@ function makeConfig(overrides: Partial<ReleaseConfig> = {}): ReleaseConfig {
     repo: { owner: 'test', repo: 'repo' },
     concurrency: 4,
     stages: [],
+    channels: [],
     extractionFailureThreshold: 0.5,
     ...overrides
   };
@@ -303,5 +305,51 @@ describe('ReleasePipeline', () => {
     await pipeline.execute();
 
     expect(mockDiscover).toHaveBeenCalledWith('/workspace/_site');
+  });
+
+  it('channelOverride overrides manifest channels', async () => {
+    const config = makeConfig();
+    const { deps, mockDiscover } = createMockDeps({
+      changedDocs: ['cc-51015']
+    });
+    const overrideChannels = [Channel.parse('public/guides')];
+    deps.channelOverride = overrideChannels;
+    const docs = [makeDoc('CC 51015')];
+
+    mockDiscover.mockResolvedValue(docs);
+
+    const pipeline = new ReleasePipeline(config, deps);
+    const result = await pipeline.execute();
+
+    expect(result.released).toHaveLength(1);
+    expect(deps.publisher.publish).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      overrideChannels
+    );
+  });
+
+  it('tracks releasedArtifacts with id, tag, url, channels', async () => {
+    const config = makeConfig();
+    const { deps, mockDiscover } = createMockDeps({
+      changedDocs: ['cc-51015']
+    });
+    const docs = [makeDoc('CC 51015')];
+
+    mockDiscover.mockResolvedValue(docs);
+
+    const pipeline = new ReleasePipeline(config, deps);
+    const result = await pipeline.execute();
+
+    expect(result.releasedArtifacts).toHaveLength(1);
+    expect(result.releasedArtifacts[0].id).toBe('cc-51015');
+    expect(result.releasedArtifacts[0].url).toBe(
+      'https://github.com/test/repo/releases/tag/test/ed1'
+    );
+    expect(result.releasedArtifacts[0].channels).toEqual(['public/default']);
   });
 });

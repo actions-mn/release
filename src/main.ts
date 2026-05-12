@@ -43,7 +43,8 @@ async function run(): Promise<void> {
       packager: new ZipPackager(),
       publisher: new GitHubReleasePublisher(octokit, config.repo),
       namingRegistry,
-      manifest
+      manifest,
+      channelOverride: config.channels.length > 0 ? config.channels : undefined
     });
 
     const result = await pipeline.execute();
@@ -64,6 +65,7 @@ async function run(): Promise<void> {
       'total-documents',
       result.released.length + result.skipped.length + result.failed.length
     );
+    setOutput('released-artifacts', JSON.stringify(result.releasedArtifacts));
 
     if (result.failed.length > 0) {
       const failedIds = result.failed

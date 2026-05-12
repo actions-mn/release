@@ -11,20 +11,30 @@ import {
 } from './domain/types.js';
 import type { NamingStrategyRegistry } from './packaging/naming-strategy.js';
 import type { ChannelManifest } from './domain/channel-manifest.js';
+import { DocumentReleasePolicy } from './domain/channel-manifest.js';
 import { Channel } from './domain/channel.js';
 import { logger } from './shared/logger.js';
 import { mapWithConcurrency } from './shared/concurrency.js';
+
+export interface ReleasedArtifact {
+  readonly id: string;
+  readonly tag: string;
+  readonly url: string;
+  readonly channels: readonly string[];
+}
 
 export interface PipelineResult {
   readonly released: DocumentMetadata[];
   readonly skipped: DocumentMetadata[];
   readonly failed: Array<{ document: DocumentMetadata; error: Error }>;
+  readonly releasedArtifacts: readonly ReleasedArtifact[];
 }
 
 interface MutablePipelineResult {
   released: DocumentMetadata[];
   skipped: DocumentMetadata[];
   failed: Array<{ document: DocumentMetadata; error: Error }>;
+  releasedArtifacts: ReleasedArtifact[];
 }
 
 export interface PipelineDependencies {
@@ -35,6 +45,7 @@ export interface PipelineDependencies {
   publisher: IReleasePublisher;
   namingRegistry: NamingStrategyRegistry;
   manifest?: ChannelManifest;
+  channelOverride?: readonly Channel[];
 }
 
 export class ReleasePipeline {
@@ -50,7 +61,8 @@ export class ReleasePipeline {
     const result: MutablePipelineResult = {
       released: [],
       skipped: [],
-      failed: []
+      failed: [],
+      releasedArtifacts: []
     };
 
     // 1. Discover
@@ -95,7 +107,8 @@ export class ReleasePipeline {
           tag,
           this.config.force
         );
-        return { doc, tag, canonicalBase, detection };
+        const policy = this.resolvePolicy(doc);
+        return { doc, tag, canonicalBase, detection, policy };
       }
     );
 
@@ -119,15 +132,13 @@ export class ReleasePipeline {
         logger.error(`FAILED: ${filteredDocs[i].id}: ${r.reason}`);
         continue;
       }
-      const { doc, detection } = r.value;
-
-      // Resolve per-document policy for stage constraints and channels
-      const channels = this.resolveChannels(doc);
+      const { doc, detection, policy } = r.value;
+      const channels = this.resolveChannelsFromPolicy(policy);
 
       if (!detection.changed) {
         result.skipped.push(doc);
         logger.info(`SKIPPED: ${doc.id} (unchanged)`);
-      } else if (!this.passesStageConstraint(doc)) {
+      } else if (!this.passesStageConstraint(policy, doc)) {
         result.skipped.push(doc);
         logger.info(
           `SKIPPED: ${doc.id} (stage ${doc.version.stage.toString()} not in manifest allow list)`
@@ -144,7 +155,7 @@ export class ReleasePipeline {
         concurrency,
         async ({ doc, tag, canonicalBase, detection, channels }) => {
           const artifact = await this.deps.packager.package(doc, canonicalBase);
-          await this.deps.publisher.publish(
+          const publishResult = await this.deps.publisher.publish(
             tag,
             artifact.zipPath,
             detection.currentHash,
@@ -153,17 +164,22 @@ export class ReleasePipeline {
             artifact,
             channels
           );
-          return doc;
+          return { doc, publishResult, channels };
         }
       );
 
       for (let i = 0; i < publishResults.length; i++) {
         const r = publishResults[i];
         if (r.status === 'fulfilled') {
-          result.released.push(r.value);
-          logger.info(
-            `RELEASED: ${r.value.id} (${r.value.version.tagComponent})`
-          );
+          const { doc, publishResult, channels } = r.value;
+          result.released.push(doc);
+          result.releasedArtifacts.push({
+            id: doc.id.toString(),
+            tag: publishResult.tag.toString(),
+            url: publishResult.url,
+            channels: channels.map((c) => c.toString())
+          });
+          logger.info(`RELEASED: ${doc.id} (${doc.version.tagComponent})`);
         } else {
           result.failed.push({
             document: changed[i].doc,
@@ -185,17 +201,27 @@ export class ReleasePipeline {
     return result;
   }
 
-  private resolveChannels(doc: DocumentMetadata): Channel[] {
+  private resolvePolicy(doc: DocumentMetadata): DocumentReleasePolicy {
     if (this.deps.manifest) {
-      const policy = this.deps.manifest.resolve(doc);
-      if (policy.channels.length > 0) return [...policy.channels];
+      return this.deps.manifest.resolve(doc);
     }
+    return DocumentReleasePolicy.fromDefaults('public', [
+      Channel.public('default')
+    ]);
+  }
+
+  private resolveChannelsFromPolicy(policy: DocumentReleasePolicy): Channel[] {
+    if (this.deps.channelOverride && this.deps.channelOverride.length > 0) {
+      return [...this.deps.channelOverride];
+    }
+    if (policy.channels.length > 0) return [...policy.channels];
     return [Channel.public('default')];
   }
 
-  private passesStageConstraint(doc: DocumentMetadata): boolean {
-    if (!this.deps.manifest) return true;
-    const policy = this.deps.manifest.resolve(doc);
+  private passesStageConstraint(
+    policy: DocumentReleasePolicy,
+    doc: DocumentMetadata
+  ): boolean {
     if (!policy.stageAllowList) return true;
     return policy.stageAllowList.has(doc.version.stage.toString());
   }
