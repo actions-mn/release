@@ -33,6 +33,7 @@ describe('getInputs', () => {
     expect(config.token).toBe('ghp_test123');
     expect(config.concurrency).toBe(4);
     expect(config.stages).toEqual([]);
+    expect(config.channels).toEqual([]);
     expect(config.extractionFailureThreshold).toBe(0.5);
     expect(config.repo).toEqual({ owner: 'owner', repo: 'repo' });
     expect(config.workspacePath).toBe('/github/workspace');
@@ -124,5 +125,37 @@ describe('getInputs', () => {
     await expect(getInputs()).rejects.toThrow(
       'Invalid GITHUB_REPOSITORY format'
     );
+  });
+
+  it('reads channels input', async () => {
+    setInput('channels', 'public/standards, members/internal-review');
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.channels).toHaveLength(2);
+    expect(config.channels[0].toString()).toBe('public/standards');
+    expect(config.channels[1].toString()).toBe('members/internal-review');
+  });
+
+  it('returns empty channels when not provided', async () => {
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.channels).toEqual([]);
+  });
+
+  it('reads members default-visibility', async () => {
+    setInput('default-visibility', 'members');
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.defaultVisibility).toBe('members');
+  });
+
+  it('throws for invalid default-visibility', async () => {
+    setInput('default-visibility', 'invalid');
+    setInput('token', 'test');
+
+    await expect(getInputs()).rejects.toThrow('Invalid default-visibility');
   });
 });

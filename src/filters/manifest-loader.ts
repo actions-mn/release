@@ -7,7 +7,7 @@ import { logger } from '../shared/logger.js';
 export async function loadManifest(
   sourcePath: string,
   fileName: string,
-  defaultVisibility: 'public' | 'private' = 'public'
+  defaultVisibility: 'public' | 'private' | 'members' = 'public'
 ): Promise<ChannelManifest> {
   const filePath = join(sourcePath, fileName);
 

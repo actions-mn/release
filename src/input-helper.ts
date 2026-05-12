@@ -1,5 +1,6 @@
 import { getInput } from '@actions/core';
 import { resolve } from 'path';
+import { Channel } from './domain/channel.js';
 
 export interface ReleaseConfig {
   sourcePath: string;
@@ -7,11 +8,12 @@ export interface ReleaseConfig {
   releaseConfigFile: string;
   workspacePath: string;
 
-  defaultVisibility: 'public' | 'private';
+  defaultVisibility: 'public' | 'private' | 'members';
   force: boolean;
   includePattern: string;
   concurrency: number;
   stages: string[];
+  channels: Channel[];
   extractionFailureThreshold: number;
   token: string;
 
@@ -30,6 +32,7 @@ export async function getInputs(): Promise<ReleaseConfig> {
     includePattern: getIncludePattern(),
     concurrency: getConcurrency(),
     stages: getStages(),
+    channels: getChannels(),
     extractionFailureThreshold: getExtractionFailureThreshold(),
     token: getToken(),
 
@@ -75,6 +78,16 @@ function getStages(): string[] {
     .filter(Boolean);
 }
 
+function getChannels(): Channel[] {
+  const raw = getInput('channels')?.trim();
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => Channel.parse(s));
+}
+
 function getExtractionFailureThreshold(): number {
   const raw = getInput('extraction-failure-threshold') || '0.5';
   const value = parseFloat(raw);
@@ -86,14 +99,14 @@ function getExtractionFailureThreshold(): number {
   return value;
 }
 
-function getDefaultVisibility(): 'public' | 'private' {
+function getDefaultVisibility(): 'public' | 'private' | 'members' {
   const value = getInput('default-visibility') || 'public';
-  if (value !== 'public' && value !== 'private') {
+  if (value !== 'public' && value !== 'private' && value !== 'members') {
     throw new Error(
-      `Invalid default-visibility: ${value}. Must be 'public' or 'private'.`
+      `Invalid default-visibility: ${value}. Must be 'public', 'private', or 'members'.`
     );
   }
-  return value as 'public' | 'private';
+  return value as 'public' | 'private' | 'members';
 }
 
 function getToken(): string {

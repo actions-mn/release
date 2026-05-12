@@ -30,8 +30,12 @@ inputs:
     description: 'Comma-separated stages to release (e.g. "published,final-draft"). Empty = all stages.'
     required: false
     default: ''
+  channels:
+    description: 'Override channels for all documents (comma-separated). Empty = use manifest.'
+    required: false
+    default: ''
   default-visibility:
-    description: 'Default visibility for documents not listed in release manifest (public or private)'
+    description: 'Default visibility for documents not listed in release manifest (public, private, or members)'
     required: false
     default: 'public'
   concurrency:
@@ -56,6 +60,8 @@ outputs:
     description: 'JSON array of failed document identifiers'
   total-documents:
     description: 'Total number of documents processed'
+  released-artifacts:
+    description: 'JSON array of { id, tag, url, channels } for released documents'
 
 runs:
   using: 'node24'
