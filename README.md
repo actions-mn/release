@@ -9,9 +9,12 @@ Part of the [actions-mn ecosystem](https://github.com/actions-mn) — alongside 
 ## Features
 
 - **Per-document releases**: Each document gets its own tag, asset, and GitHub Release
+- **Channel-based publication**: Route documents to specific portals via `audience/category` channels
+- **Pattern-based manifests**: Auto-assign channels by document ID pattern — zero per-document config
+- **Stage gating**: Restrict releases to specific stages (e.g. only `published` documents)
 - **Content-hash change detection**: Only re-releases documents whose compiled output actually changed
 - **Immutable published releases**: Published tags are created once; draft tags are updated in-place
-- **Visibility control**: Optional `metanorma.release.yml` to manage public/private documents
+- **Selective force-replace**: Re-release specific documents without affecting others in the same repo
 - **Universal flavor support**: Data-driven tag naming from RXL metadata — works with all Metanorma flavors
 - **Parallel processing**: Fault-tolerant `Promise.allSettled` — one failure doesn't block others
 - **TypeScript**: Written in TypeScript with full type safety and 80%+ test coverage
@@ -54,9 +57,14 @@ Downstream portals discover participating repos via the `metanorma-release` GitH
 |-------|-------------|----------|---------|
 | `source-path` | Source path containing the metanorma configuration | No | `.` |
 | `output-dir` | Output directory containing compiled documents | No | `_site` |
-| `release-config` | Release manifest file (visibility filter) | No | `metanorma.release.yml` |
+| `release-config` | Release manifest file | No | `metanorma.release.yml` |
+| `default-visibility` | Default visibility for unlisted documents (`public`, `private`, `members`) | No | `public` |
 | `force` | Force release even if content hash matches last release | No | `false` |
+| `force-replace` | Comma-separated doc IDs or glob patterns to force-replace | No | `''` |
 | `include-pattern` | Glob pattern to filter documents for release (e.g. `cc-*`) | No | `*` |
+| `stages` | Comma-separated stages to release. Empty = all. | No | `''` |
+| `channels` | Override channels for all documents. Empty = use manifest. | No | `''` |
+| `concurrency` | Max parallel document processing | No | `4` |
 | `token` | GitHub token for creating releases | No | `${{ github.token }}` |
 
 ## Outputs
@@ -65,7 +73,9 @@ Downstream portals discover participating repos via the `metanorma-release` GitH
 |--------|-------------|
 | `released-documents` | JSON array of released document identifiers |
 | `skipped-documents` | JSON array of skipped document identifiers (unchanged) |
+| `failed-documents` | JSON array of failed document identifiers |
 | `total-documents` | Total number of documents processed |
+| `released-artifacts` | JSON array of `{ id, tag, url, channels }` for released documents |
 
 ## Usage Examples
 
@@ -180,22 +190,57 @@ Each document gets its own release tag and asset, independent of other documents
 
 ## Release Manifest
 
-The `metanorma.release.yml` file controls which documents in a repo are eligible for public release. If this file is absent, all documents are released.
+The `metanorma.release.yml` file controls which documents in a repo are eligible for release, their channels, and stage constraints. If this file is absent, all documents are released.
+
+### Pattern-based channel assignment
+
+Use `pattern` to auto-assign channels by document ID:
 
 ```yaml
 # metanorma.release.yml
 documents:
-  - source: sources/cc-51015.adoc          # visibility: public (default)
-  - source: sources/cc-51024.adoc
-  - source: sources/cc-51026.adoc
-    visibility: private                     # withheld from public release
+  - pattern: "cc-s-*"
+    channels: [public/standards]
+  - pattern: "cc-r-*"
+    channels: [public/reports]
+  - pattern: "cc-a-*"
+    channels: [public/admin]
 ```
+
+When an author adds a new document like `cc-s-51020`, the pattern `cc-s-*` automatically assigns it to `public/standards`. No manifest update needed.
+
+### Exact source matching
+
+For single-document repos or exceptions, use `source`:
+
+```yaml
+documents:
+  - source: sources/cc-10001.adoc
+    channels: [public/directives]
+```
+
+### Stage gating
+
+Restrict releases to specific stages:
+
+```yaml
+documents:
+  - pattern: "cc-s-*"
+    stages: [published]        # only published stage creates a release
+    channels: [public/standards]
+```
+
+Working drafts and committee drafts never create a GitHub Release with this constraint.
+
+### Visibility
 
 | Value | Effect |
 |-------|--------|
 | `public` (default) | Document is packaged and released |
 | `private` | Document is not released publicly |
 | `members` | Reserved for future use (member-only access) |
+
+When a manifest exists but a document doesn't match any pattern or source, it defaults to the `default-visibility` input (default: `public`).
 
 ## Change Detection
 
@@ -207,6 +252,60 @@ The action uses **content hashing** to avoid re-releasing unchanged documents:
 4. If the hash differs → package and release
 
 The hash is stored in the first line of the release body: `content-hash:{sha256hex}`.
+
+## Channels
+
+A channel is an `audience/category` pair that determines where a document appears:
+
+- **audience**: `public`, `members`, or `internal` — who can see it
+- **category**: free-form identifier — where it appears in the portal
+
+```
+public/standards        ← published standards, visible to everyone
+public/reports          ← conference and technical reports
+members/internal-review ← only visible to organization members
+internal/working-draft  ← never aggregated by any external portal
+```
+
+The publisher sets the channel. The aggregator (downstream portal) filters by it. A portal **cannot** override or discover channels the publisher didn't assign.
+
+## Force-replacing releases
+
+Published releases are immutable by default — the action will not overwrite an existing release. To selectively re-release a specific document (e.g. to fix bad metadata), use the `force-replace` input:
+
+```yaml
+- uses: actions-mn/release@v1
+  with:
+    force-replace: 'cc-s-51015'       # exact doc ID
+    # or: force-replace: 'cc-s-*'     # glob pattern
+    token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Only matched documents are deleted and recreated. Other documents in the same repo are completely unaffected.
+
+## Release metadata
+
+Each GitHub Release carries structured metadata in its body for downstream consumers:
+
+```
+content-hash:abc123...
+
+<!-- mn-release-metadata
+{"version":1,"id":"cc-s-51015","channels":["public/standards"],
+ "stage":"published","edition":"1","title":"My Standard"}
+ -->
+
+## CC/S 51015
+
+| Field | Value |
+|---|---|
+| Document | cc-s-51015 |
+| Edition | 1 |
+| Status | published |
+| Channels | public/standards |
+```
+
+The `mn-release-metadata` JSON block (inside an HTML comment) is parsed by [`actions-mn/aggregate`](https://github.com/actions-mn/aggregate) for channel filtering and indexing.
 
 ## Discovery via GitHub Topics
 
