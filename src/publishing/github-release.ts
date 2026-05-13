@@ -31,7 +31,8 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     metadata: DocumentMetadata,
     preRelease: boolean,
     artifact?: ArtifactResult,
-    channels: Channel[] = [Channel.public('default')]
+    channels: Channel[] = [Channel.public('default')],
+    forceReplace: boolean = false
   ): Promise<PublishResult> {
     const tagName = tag.toString();
     const body = this.formatBody(hash, metadata, channels);
@@ -39,6 +40,22 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     const existing = await this.findExistingRelease(tagName);
 
     if (existing) {
+      if (forceReplace) {
+        logger.info(
+          `Force-replacing release ${tagName} — deleting existing release.`
+        );
+        await this.deleteRelease(existing);
+        return this.createRelease(
+          tag,
+          assetPath,
+          body,
+          preRelease,
+          metadata,
+          artifact,
+          channels
+        );
+      }
+
       if (!tag.isPreRelease && !existing.prerelease) {
         logger.warn(
           `Published release ${tagName} already exists — skipping update. ` +
@@ -84,6 +101,23 @@ export class GitHubReleasePublisher implements IReleasePublisher {
     } catch (error) {
       if ((error as { status?: number }).status === 404) return undefined;
       throw error;
+    }
+  }
+
+  private async deleteRelease(existing: GitHubReleaseData): Promise<void> {
+    await this.octokit.rest.repos.deleteRelease({
+      ...this.repo,
+      release_id: existing.id
+    });
+    try {
+      await this.octokit.rest.git.deleteRef({
+        ...this.repo,
+        ref: `tags/${existing.tag_name}`
+      });
+    } catch {
+      logger.warn(
+        `Could not delete tag ${existing.tag_name} — it may have already been removed.`
+      );
     }
   }
 

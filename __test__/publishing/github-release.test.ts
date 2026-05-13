@@ -9,6 +9,7 @@ import {
 } from '../../src/domain/types.js';
 import { DocumentType } from '../../src/domain/document-metadata.js';
 import type { DocumentMetadata } from '../../src/domain/document-metadata.js';
+import { Channel } from '../../src/domain/channel.js';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 
@@ -59,8 +60,12 @@ function mockOctokit(responses: Record<string, unknown>) {
         updateRelease: vi
           .fn()
           .mockResolvedValue(responses['updateRelease'] ?? { data: { id: 1 } }),
+        deleteRelease: vi.fn().mockResolvedValue({}),
         deleteReleaseAsset: vi.fn().mockResolvedValue({}),
         uploadReleaseAsset: vi.fn().mockResolvedValue({ data: {} })
+      },
+      git: {
+        deleteRef: vi.fn().mockResolvedValue({})
       }
     }
   };
@@ -276,5 +281,54 @@ describe('GitHubReleasePublisher', () => {
     await publisher.publish(tag, assetPath, hash, doc, true);
 
     expect(capturedPreRelease).toBe(true);
+  });
+
+  it('force-replaces published release by deleting and recreating', async () => {
+    const octokit = mockOctokit({
+      'getReleaseByTag:cc-51015/ed1': {
+        data: {
+          id: 10,
+          tag_name: 'cc-51015/ed1',
+          html_url: 'https://github.com/o/r/releases/tag/cc-51015/ed1',
+          prerelease: false,
+          body: 'content-hash:old',
+          assets: [{ id: 100, name: 'old.zip' }]
+        }
+      },
+      createRelease: {
+        data: {
+          id: 99,
+          tag_name: 'cc-51015/ed1',
+          html_url: 'https://github.com/o/r/releases/tag/cc-51015/ed1',
+          prerelease: false
+        }
+      }
+    });
+
+    const publisher = new GitHubReleasePublisher(octokit, {
+      owner: 'o',
+      repo: 'r'
+    });
+    const tag = ReleaseTag.from(
+      DocumentId.fromRaw('cc-51015'),
+      DocumentVersion.from('1', DocumentStage.fromStatus('published'))
+    );
+    const hash = ContentHash.fromString('newhash');
+    const doc = makeDoc();
+
+    const result = await publisher.publish(
+      tag, assetPath, hash, doc, false, undefined,
+      [Channel.public('standards')], true
+    );
+
+    expect(result.created).toBe(true);
+    expect(octokit.rest.repos.deleteRelease).toHaveBeenCalledWith(
+      expect.objectContaining({ release_id: 10 })
+    );
+    expect(octokit.rest.git.deleteRef).toHaveBeenCalledWith(
+      expect.objectContaining({ ref: 'tags/cc-51015/ed1' })
+    );
+    expect(octokit.rest.repos.createRelease).toHaveBeenCalledOnce();
+    expect(octokit.rest.repos.updateRelease).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ export interface ReleaseConfig {
 
   defaultVisibility: 'public' | 'private' | 'members';
   force: boolean;
+  forceReplace: string[];
   includePattern: string;
   concurrency: number;
   stages: string[];
@@ -29,6 +30,7 @@ export async function getInputs(): Promise<ReleaseConfig> {
 
     defaultVisibility: getDefaultVisibility(),
     force: getBooleanInput('force', 'false'),
+    forceReplace: getForceReplace(),
     includePattern: getIncludePattern(),
     concurrency: getConcurrency(),
     stages: getStages(),
@@ -58,6 +60,15 @@ function getReleaseConfigFile(): string {
 
 function getIncludePattern(): string {
   return getInput('include-pattern') || '*';
+}
+
+function getForceReplace(): string[] {
+  const raw = getInput('force-replace')?.trim();
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function getConcurrency(): number {

@@ -22,6 +22,10 @@ inputs:
     description: 'Force release even if content hash matches last release'
     required: false
     default: 'false'
+  force-replace:
+    description: 'Comma-separated doc IDs or glob patterns to force-replace (deletes existing published release and recreates). Empty = no replacements. Use with care — only replaces matched documents.'
+    required: false
+    default: ''
   include-pattern:
     description: 'Glob pattern to filter documents for release (e.g. "cc-*")'
     required: false

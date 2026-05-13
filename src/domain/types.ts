@@ -271,7 +271,8 @@ export interface IReleasePublisher {
     metadata: DocumentMetadata,
     preRelease: boolean,
     artifact?: ArtifactResult,
-    channels?: Channel[]
+    channels?: Channel[],
+    forceReplace?: boolean
   ): Promise<PublishResult>;
 }
 
@@ -310,6 +311,11 @@ export interface GitHubReleasesApi {
         body?: string;
         prerelease?: boolean;
       }): Promise<{ data: GitHubReleaseData }>;
+      deleteRelease(params: {
+        owner: string;
+        repo: string;
+        release_id: number;
+      }): Promise<void>;
       deleteReleaseAsset(params: {
         owner: string;
         repo: string;
@@ -323,6 +329,13 @@ export interface GitHubReleasesApi {
         data: string | NodeJS.ReadableStream;
         headers?: Record<string, unknown>;
       }): Promise<{ data: { id: number } }>;
+    };
+    git: {
+      deleteRef(params: {
+        owner: string;
+        repo: string;
+        ref: string;
+      }): Promise<void>;
     };
   };
 }

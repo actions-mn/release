@@ -45,7 +45,9 @@ function makeConfig(overrides: Partial<ReleaseConfig> = {}): ReleaseConfig {
     outputDir: '_site',
     releaseConfigFile: 'metanorma.release.yml',
     workspacePath: '/workspace',
+    defaultVisibility: 'public',
     force: false,
+    forceReplace: [],
     includePattern: '*',
     token: 'fake-token',
     repo: { owner: 'test', repo: 'repo' },
@@ -329,7 +331,8 @@ describe('ReleasePipeline', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      overrideChannels
+      overrideChannels,
+      false
     );
   });
 
@@ -351,5 +354,46 @@ describe('ReleasePipeline', () => {
       'https://github.com/test/repo/releases/tag/test/ed1'
     );
     expect(result.releasedArtifacts[0].channels).toEqual(['public/default']);
+  });
+
+  it('force-replace matching doc bypasses change detection', async () => {
+    const config = makeConfig({ forceReplace: ['cc-51015'] });
+    const { deps, mockDiscover } = createMockDeps({ changedDocs: [] });
+    const docs = [makeDoc('CC 51015'), makeDoc('CC 51024')];
+
+    mockDiscover.mockResolvedValue(docs);
+
+    const pipeline = new ReleasePipeline(config, deps);
+    const result = await pipeline.execute();
+
+    expect(result.released).toHaveLength(1);
+    expect(result.released[0].id.toString()).toBe('cc-51015');
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].id.toString()).toBe('cc-51024');
+    expect(deps.publisher.publish).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      true
+    );
+  });
+
+  it('force-replace with glob pattern matches multiple docs', async () => {
+    const config = makeConfig({ forceReplace: ['cc-51*'] });
+    const { deps, mockDiscover } = createMockDeps({ changedDocs: [] });
+    const docs = [makeDoc('CC 51015'), makeDoc('CC 51024'), makeDoc('CC 62001')];
+
+    mockDiscover.mockResolvedValue(docs);
+
+    const pipeline = new ReleasePipeline(config, deps);
+    const result = await pipeline.execute();
+
+    expect(result.released).toHaveLength(2);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].id.toString()).toBe('cc-62001');
   });
 });

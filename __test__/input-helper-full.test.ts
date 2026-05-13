@@ -158,4 +158,19 @@ describe('getInputs', () => {
 
     await expect(getInputs()).rejects.toThrow('Invalid default-visibility');
   });
+
+  it('reads force-replace input as array of patterns', async () => {
+    setInput('force-replace', 'cc-51015, cc-51*');
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.forceReplace).toEqual(['cc-51015', 'cc-51*']);
+  });
+
+  it('returns empty force-replace when not provided', async () => {
+    setInput('token', 'test');
+
+    const config = await getInputs();
+    expect(config.forceReplace).toEqual([]);
+  });
 });

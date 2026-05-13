@@ -15,6 +15,7 @@ import { DocumentReleasePolicy } from './domain/channel-manifest.js';
 import { Channel } from './domain/channel.js';
 import { logger } from './shared/logger.js';
 import { mapWithConcurrency } from './shared/concurrency.js';
+import { minimatch } from 'minimatch';
 
 export interface ReleasedArtifact {
   readonly id: string;
@@ -102,13 +103,14 @@ export class ReleasePipeline {
           doc.id,
           doc.version
         );
+        const isForceReplace = this.isForceReplace(doc.id.toString());
         const detection = await this.deps.changeDetector.detect(
           doc,
           tag,
-          this.config.force
+          this.config.force || isForceReplace
         );
         const policy = this.resolvePolicy(doc);
-        return { doc, tag, canonicalBase, detection, policy };
+        return { doc, tag, canonicalBase, detection, policy, isForceReplace };
       }
     );
 
@@ -119,6 +121,7 @@ export class ReleasePipeline {
       canonicalBase: string;
       detection: ChangeDetectorResult;
       channels: Channel[];
+      isForceReplace: boolean;
     }> = [];
 
     for (let i = 0; i < detectionResults.length; i++) {
@@ -132,10 +135,10 @@ export class ReleasePipeline {
         logger.error(`FAILED: ${filteredDocs[i].id}: ${r.reason}`);
         continue;
       }
-      const { doc, detection, policy } = r.value;
+      const { doc, detection, policy, isForceReplace } = r.value;
       const channels = this.resolveChannelsFromPolicy(policy);
 
-      if (!detection.changed) {
+      if (!detection.changed && !isForceReplace) {
         result.skipped.push(doc);
         logger.info(`SKIPPED: ${doc.id} (unchanged)`);
       } else if (!this.passesStageConstraint(policy, doc)) {
@@ -153,7 +156,7 @@ export class ReleasePipeline {
       const publishResults = await mapWithConcurrency(
         changed,
         concurrency,
-        async ({ doc, tag, canonicalBase, detection, channels }) => {
+        async ({ doc, tag, canonicalBase, detection, channels, isForceReplace }) => {
           const artifact = await this.deps.packager.package(doc, canonicalBase);
           const publishResult = await this.deps.publisher.publish(
             tag,
@@ -162,7 +165,8 @@ export class ReleasePipeline {
             doc,
             tag.isPreRelease,
             artifact,
-            channels
+            channels,
+            isForceReplace
           );
           return { doc, publishResult, channels };
         }
@@ -224,5 +228,11 @@ export class ReleasePipeline {
   ): boolean {
     if (!policy.stageAllowList) return true;
     return policy.stageAllowList.has(doc.version.stage.toString());
+  }
+
+  private isForceReplace(docId: string): boolean {
+    const patterns = this.config.forceReplace;
+    if (patterns.length === 0) return false;
+    return patterns.some((p) => minimatch(docId, p));
   }
 }
