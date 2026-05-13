@@ -84,7 +84,7 @@ export class RxlExtractor implements IDocumentExtractor {
 
     const outputDir = dirname(rxlPath);
     const formats = await this.detectFormats(outputDir);
-    const sourcePath = this.resolveSourcePath(outputDir);
+    const sourcePath = this.resolveSourcePath(outputDir, basename(rxlPath, extname(rxlPath)));
     const documentType = DocumentType.fromIdentifier(rawId);
     const version = DocumentVersion.from(edition, stage);
     const fileBaseName = basename(rxlPath, extname(rxlPath));
@@ -212,23 +212,30 @@ export class RxlExtractor implements IDocumentExtractor {
     return extensions;
   }
 
-  private resolveSourcePath(outputDir: string): string {
+  private resolveSourcePath(outputDir: string, fileBaseName: string): string {
     const normalized = outputDir.replace(/\\/g, '/');
     const documentsIdx = normalized.indexOf('/documents/');
-    if (documentsIdx === -1) {
-      logger.warn(
-        `Could not resolve source path from output dir "${outputDir}" — ` +
-          `expected a "/documents/" segment in the path`
-      );
-      return '';
+    if (documentsIdx !== -1) {
+      const relative = normalized.slice(documentsIdx + '/documents/'.length);
+      const parts = relative.split('/');
+      const docDir = parts[parts.length - 1];
+
+      const sourceParts = parts.slice(0, -1);
+      sourceParts.push(`${docDir}.adoc`);
+      return sourceParts.join('/');
     }
 
-    const relative = normalized.slice(documentsIdx + '/documents/'.length);
-    const parts = relative.split('/');
-    const docDir = parts[parts.length - 1];
+    // Flat output: _site/documents/cc-10001.rxl → infer from fileBaseName
+    const endsWithDocuments = normalized.endsWith('/documents') ||
+                              normalized.endsWith('/documents/');
+    if (endsWithDocuments && fileBaseName) {
+      return `${fileBaseName}.adoc`;
+    }
 
-    const sourceParts = parts.slice(0, -1);
-    sourceParts.push(`${docDir}.adoc`);
-    return sourceParts.join('/');
+    logger.warn(
+      `Could not resolve source path from output dir "${outputDir}" — ` +
+        `expected a "/documents/" segment in the path`
+    );
+    return '';
   }
 }
